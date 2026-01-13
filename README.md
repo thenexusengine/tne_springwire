@@ -373,9 +373,9 @@ See **[PUBLISHER-CONFIG-GUIDE.md](PUBLISHER-CONFIG-GUIDE.md)** for complete docu
 
 ### Bidder-Specific Parameters
 
-Each bidder adapter requires specific parameters to be passed in bid requests.
+Each bidder adapter requires specific parameters in the OpenRTB request.
 
-**Required for Rubicon/Magnite:**
+**Rubicon/Magnite requires:**
 ```json
 {
   "imp": [{
@@ -390,27 +390,7 @@ Each bidder adapter requires specific parameters to be passed in bid requests.
 }
 ```
 
-**Prebid.js Configuration:**
-```javascript
-pbjs.addAdUnits([{
-  code: 'div-ad-slot',
-  mediaTypes: {
-    banner: {
-      sizes: [[300, 250], [728, 90]]
-    }
-  },
-  bids: [{
-    bidder: 'rubicon',
-    params: {
-      accountId: 26298,
-      siteId: 556630,
-      zoneId: 3767186
-    }
-  }]
-}]);
-```
-
-**Testing Your Parameters:**
+**Testing:**
 ```bash
 # Test Rubicon parameters
 cd examples

@@ -105,29 +105,29 @@ Each bidder adapter may require specific parameters to be passed in the bid requ
 }
 ```
 
-### Prebid.js Configuration
+### Client Integration
 
-```javascript
-pbjs.addAdUnits([{
-  code: 'div-gpt-ad-123',
-  mediaTypes: {
-    banner: {
-      sizes: [[300, 250], [728, 90]]
-    }
-  },
-  bids: [{
-    bidder: 'rubicon',
-    params: {
-      accountId: 12345,
-      siteId: 67890,
-      zoneId: 123456,
-      inventory: {
-        rating: '5-star',
-        prodtype: 'tech'
+Your client (JS script or other integration) should construct the OpenRTB request with bidder params in `imp.ext`:
+
+```json
+POST /openrtb2/auction
+Content-Type: application/json
+
+{
+  "id": "auction-123",
+  "imp": [{
+    "id": "1",
+    "banner": {"format": [{"w": 300, "h": 250}]},
+    "ext": {
+      "rubicon": {
+        "accountId": 12345,
+        "siteId": 67890,
+        "zoneId": 123456
       }
     }
-  }]
-}]);
+  }],
+  "site": {"domain": "example.com", "publisher": {"id": "pub123"}}
+}
 ```
 
 ---
@@ -187,28 +187,30 @@ pbjs.addAdUnits([{
 }
 ```
 
-### Prebid.js Configuration
+### Client Integration
 
-```javascript
-pbjs.addAdUnits([{
-  code: 'div-gpt-ad-456',
-  mediaTypes: {
-    banner: {
-      sizes: [[300, 250]]
+```json
+POST /openrtb2/auction
+Content-Type: application/json
+
+{
+  "id": "auction-456",
+  "imp": [{
+    "id": "1",
+    "banner": {"format": [{"w": 300, "h": 250}]},
+    "ext": {
+      "appnexus": {
+        "placementId": 13232354,
+        "keywords": {
+          "genre": ["rock", "pop"],
+          "age": ["25-34"]
+        },
+        "reserve": 0.50
+      }
     }
-  },
-  bids: [{
-    bidder: 'appnexus',
-    params: {
-      placementId: 13232354,
-      keywords: {
-        genre: ['rock', 'pop'],
-        age: ['25-34']
-      },
-      reserve: 0.50
-    }
-  }]
-}]);
+  }],
+  "site": {"domain": "example.com", "publisher": {"id": "pub123"}}
+}
 ```
 
 ---
@@ -265,27 +267,11 @@ pbjs.addAdUnits([{
 
 ## How Parameters Flow Through Catalyst
 
-### 1. Client-Side (Prebid.js)
+### 1. Client Builds OpenRTB Request
 
-```javascript
-// Prebid.js collects bidder params
-pbjs.addAdUnits([{
-  code: 'ad-slot-1',
-  bids: [{
-    bidder: 'rubicon',
-    params: {
-      accountId: 12345,
-      siteId: 67890,
-      zoneId: 123456
-    }
-  }]
-}]);
-```
+Your client (JS script, server-side integration, or other source) constructs the OpenRTB bid request with bidder-specific parameters in `imp.ext`:
 
-### 2. Prebid.js Builds OpenRTB Request
-
-```javascript
-// Prebid.js converts params to OpenRTB format
+```json
 {
   "imp": [{
     "ext": {
@@ -299,7 +285,7 @@ pbjs.addAdUnits([{
 }
 ```
 
-### 3. Request Sent to Catalyst PBS
+### 2. Request Sent to Catalyst PBS
 
 ```bash
 POST https://catalyst.springwire.ai/openrtb2/auction
@@ -325,7 +311,7 @@ Content-Type: application/json
 }
 ```
 
-### 4. Catalyst Processes Request
+### 3. Catalyst Processes Request
 
 ```
 1. Auction handler receives request
@@ -337,9 +323,18 @@ Content-Type: application/json
 7. Send to Rubicon PBS with accountId/siteId/zoneId
 ```
 
-### 5. Adapter Passes to Bidder
+### 4. Adapter Forwards to Bidder
 
-The Rubicon adapter forwards the entire `imp.ext.rubicon` object to Rubicon's PBS endpoint, preserving all parameters.
+The Rubicon adapter forwards the entire `imp.ext.rubicon` object to Rubicon's PBS endpoint at `https://prebid-server.rubiconproject.com/openrtb2/auction`, preserving all parameters.
+
+### 5. Response Flow
+
+```
+1. Rubicon returns bid response
+2. Adapter parses bids
+3. Catalyst collects all bidder responses
+4. Returns unified OpenRTB response to client
+```
 
 ---
 
@@ -439,22 +434,27 @@ bids: [{
 
 **Symptom**: Rubicon receives requests but parameters are missing
 
-**Cause**: Prebid.js not configured to send to Catalyst PBS
+**Cause**: Client not including params in imp.ext
 
-**Solution**: Configure Prebid.js with correct server endpoint
+**Solution**: Verify your client is building requests correctly
 
-```javascript
-pbjs.setConfig({
-  s2sConfig: {
-    accountId: 'catalyst',
-    enabled: true,
-    timeout: 1000,
-    adapter: 'prebidServer',
-    endpoint: 'https://catalyst.springwire.ai/openrtb2/auction',
-    syncEndpoint: 'https://catalyst.springwire.ai/cookie_sync',
-    bidders: ['rubicon', 'appnexus', 'pubmatic']
-  }
-});
+```json
+{
+  "imp": [{
+    "ext": {
+      "rubicon": {
+        "accountId": 26298,
+        "siteId": 556630,
+        "zoneId": 3767186
+      }
+    }
+  }]
+}
+```
+
+Check Catalyst logs to see what it's receiving:
+```bash
+docker compose logs -f catalyst | grep -i "imp.ext"
 ```
 
 ### Issue 4: Wrong Parameter Types
@@ -540,22 +540,18 @@ See [DYNAMIC-BIDDERS-GUIDE.md](DYNAMIC-BIDDERS-GUIDE.md) for more on dynamic bid
 
 ## Best Practices
 
-### 1. Validate Parameters Client-Side
+### 1. Validate Parameters in Your Client
+
+Ensure your client validates required parameters before sending to Catalyst:
 
 ```javascript
-// Validate required params before sending
+// Example: Client-side validation before sending
 function validateRubiconParams(params) {
-  if (!params.accountId) {
-    console.error('Rubicon: accountId is required');
-    return false;
-  }
-  if (!params.siteId) {
-    console.error('Rubicon: siteId is required');
-    return false;
-  }
-  if (!params.zoneId) {
-    console.error('Rubicon: zoneId is required');
-    return false;
+  const required = ['accountId', 'siteId', 'zoneId'];
+  for (const field of required) {
+    if (!params[field]) {
+      throw new Error(`Rubicon: ${field} is required`);
+    }
   }
   return true;
 }
@@ -563,23 +559,27 @@ function validateRubiconParams(params) {
 
 ### 2. Use Environment-Specific Parameters
 
-```javascript
-// Different params for dev/staging/production
-const rubiconParams = {
-  dev: {
-    accountId: 11111,
-    siteId: 22222,
-    zoneId: 33333
-  },
-  production: {
-    accountId: 12345,
-    siteId: 67890,
-    zoneId: 123456
-  }
-};
+Configure different parameters for dev/staging/production:
 
-const env = process.env.NODE_ENV || 'dev';
-const params = rubiconParams[env];
+```json
+{
+  "environments": {
+    "dev": {
+      "rubicon": {
+        "accountId": 11111,
+        "siteId": 22222,
+        "zoneId": 33333
+      }
+    },
+    "production": {
+      "rubicon": {
+        "accountId": 26298,
+        "siteId": 556630,
+        "zoneId": 3767186
+      }
+    }
+  }
+}
 ```
 
 ### 3. Monitor Parameter Errors
@@ -637,9 +637,10 @@ Create a configuration file documenting all bidder parameters:
 ## Additional Resources
 
 - **OpenRTB 2.5 Spec**: [IAB OpenRTB](https://www.iab.com/wp-content/uploads/2016/03/OpenRTB-API-Specification-Version-2-5-FINAL.pdf)
-- **Prebid.js Docs**: [Prebid Server Configuration](https://docs.prebid.org/prebid-server/overview/prebid-server-overview.html)
-- **Rubicon Docs**: Contact your Rubicon account manager
-- **AppNexus Docs**: [Xandr Documentation](https://docs.xandr.com/)
+- **Prebid Server Docs**: [Prebid Server Overview](https://docs.prebid.org/prebid-server/overview/prebid-server-overview.html)
+- **Rubicon/Magnite**: Contact your account manager for parameter documentation
+- **AppNexus/Xandr**: [Xandr Documentation](https://docs.xandr.com/)
+- **Catalyst Examples**: See `examples/` directory for working bid requests
 
 ---
 

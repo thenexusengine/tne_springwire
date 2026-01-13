@@ -2,21 +2,32 @@
 
 This directory contains example OpenRTB bid requests and test scripts for Catalyst PBS.
 
+## Architecture
+
+Catalyst is a **server-side PBS (Prebid Server)** that receives OpenRTB 2.x bid requests. Your client (JavaScript, server-side integration, or other) constructs these requests and sends them to:
+
+```
+POST https://catalyst.springwire.ai/openrtb2/auction
+Content-Type: application/json
+```
+
+These examples show the exact request format Catalyst expects, including bidder-specific parameters.
+
 ## Files
 
 ### Bid Request Examples
 
 **rubicon-bid-request.json**
-- Complete bid request example for Rubicon/Magnite bidder
-- Includes your actual Rubicon credentials (accountId: 26298, siteId: 556630, zoneId: 3767186)
+- Complete OpenRTB bid request for Rubicon/Magnite
+- Includes your actual credentials (accountId: 26298, siteId: 556630, zoneId: 3767186)
 - Shows proper formatting for banner impressions
-- Ready to use with curl or test scripts
+- Ready to send from your client to Catalyst
 
 **multi-bidder-request.json**
-- Example showing multiple bidders in a single auction
-- Includes Rubicon, AppNexus, and PubMatic bidders
-- Demonstrates how to pass different parameters to each bidder
-- Shows advanced features like geo-targeting and content categories
+- OpenRTB request with multiple bidders in a single auction
+- Includes Rubicon, AppNexus, and PubMatic
+- Shows how to pass different parameters to each bidder
+- Demonstrates geo-targeting and content categories
 
 ### Test Scripts
 
