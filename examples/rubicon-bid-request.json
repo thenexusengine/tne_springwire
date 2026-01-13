@@ -1,0 +1,46 @@
+{
+  "id": "example-auction-001",
+  "imp": [
+    {
+      "id": "1",
+      "banner": {
+        "format": [
+          {"w": 300, "h": 250},
+          {"w": 728, "h": 90}
+        ]
+      },
+      "bidfloor": 0.50,
+      "bidfloorcur": "USD",
+      "ext": {
+        "rubicon": {
+          "accountId": 26298,
+          "siteId": 556630,
+          "zoneId": 3767186,
+          "inventory": {
+            "rating": "5-star",
+            "prodtype": "tech"
+          }
+        }
+      }
+    }
+  ],
+  "site": {
+    "domain": "example.com",
+    "page": "https://example.com/articles/technology",
+    "publisher": {
+      "id": "pub123"
+    }
+  },
+  "device": {
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "ip": "203.0.113.42",
+    "devicetype": 2,
+    "language": "en"
+  },
+  "user": {
+    "id": "user-xyz-789"
+  },
+  "at": 1,
+  "tmax": 1000,
+  "cur": ["USD"]
+}

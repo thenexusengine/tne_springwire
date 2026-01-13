@@ -371,6 +371,67 @@ async function addPublisher(id, domains) {
 
 See **[PUBLISHER-CONFIG-GUIDE.md](PUBLISHER-CONFIG-GUIDE.md)** for complete documentation.
 
+### Bidder-Specific Parameters
+
+Each bidder adapter requires specific parameters to be passed in bid requests.
+
+**Required for Rubicon/Magnite:**
+```json
+{
+  "imp": [{
+    "ext": {
+      "rubicon": {
+        "accountId": 26298,
+        "siteId": 556630,
+        "zoneId": 3767186
+      }
+    }
+  }]
+}
+```
+
+**Prebid.js Configuration:**
+```javascript
+pbjs.addAdUnits([{
+  code: 'div-ad-slot',
+  mediaTypes: {
+    banner: {
+      sizes: [[300, 250], [728, 90]]
+    }
+  },
+  bids: [{
+    bidder: 'rubicon',
+    params: {
+      accountId: 26298,
+      siteId: 556630,
+      zoneId: 3767186
+    }
+  }]
+}]);
+```
+
+**Testing Your Parameters:**
+```bash
+# Test Rubicon parameters
+cd examples
+./test-rubicon-params.sh
+
+# Test with custom values
+./test-rubicon-params.sh <account_id> <site_id> <zone_id>
+
+# Test with curl
+curl -X POST https://catalyst.springwire.ai/openrtb2/auction \
+  -H "Content-Type: application/json" \
+  -d @rubicon-bid-request.json
+```
+
+**Example Files:**
+- `examples/rubicon-bid-request.json` - Single bidder example with your Rubicon credentials
+- `examples/multi-bidder-request.json` - Multiple bidders (Rubicon, AppNexus, PubMatic)
+- `examples/test-rubicon-params.sh` - Automated test script
+
+See **[BIDDER-PARAMS-GUIDE.md](BIDDER-PARAMS-GUIDE.md)** for complete documentation on all bidders.
+
 ### Intelligent Demand Router (IDR) Integration
 
 ML-based demand source selection for optimized yield.

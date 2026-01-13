@@ -1,0 +1,67 @@
+{
+  "id": "multi-bidder-auction-002",
+  "imp": [
+    {
+      "id": "1",
+      "banner": {
+        "format": [
+          {"w": 300, "h": 250}
+        ]
+      },
+      "bidfloor": 0.50,
+      "bidfloorcur": "USD",
+      "ext": {
+        "rubicon": {
+          "accountId": 26298,
+          "siteId": 556630,
+          "zoneId": 3767186
+        },
+        "appnexus": {
+          "placementId": 13232354,
+          "keywords": {
+            "genre": ["tech", "news"],
+            "age": ["25-34"]
+          },
+          "reserve": 0.50
+        },
+        "pubmatic": {
+          "publisherId": "156209",
+          "adSlot": "homepage-banner@300x250",
+          "pmzoneid": "zone1",
+          "kadfloor": "0.50"
+        }
+      }
+    }
+  ],
+  "site": {
+    "domain": "technews.example.com",
+    "page": "https://technews.example.com/",
+    "publisher": {
+      "id": "pub123"
+    },
+    "cat": ["IAB19"],
+    "keywords": "technology,gadgets,innovation"
+  },
+  "device": {
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "ip": "203.0.113.42",
+    "devicetype": 2,
+    "language": "en",
+    "geo": {
+      "country": "USA",
+      "region": "CA",
+      "city": "San Francisco",
+      "zip": "94103"
+    }
+  },
+  "user": {
+    "id": "user-abc-456",
+    "yob": 1990,
+    "gender": "M"
+  },
+  "at": 1,
+  "tmax": 1000,
+  "cur": ["USD"],
+  "bcat": ["IAB25", "IAB26"],
+  "badv": ["competitor.com"]
+}
