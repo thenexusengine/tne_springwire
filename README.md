@@ -84,7 +84,7 @@ Catalyst is the server-side auction engine that powers The Nexus Engine's transp
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/tne-catalyst.git
+git clone https://github.com/thenexusengine/tne_springwire.git
 cd tne-catalyst
 
 # Install dependencies
@@ -700,7 +700,7 @@ go run scripts/test_ivt.go
 - **OpenRTB Spec**: https://www.iab.com/guidelines/real-time-bidding-rtb-project/
 
 ### Community
-- **GitHub Issues**: https://github.com/yourusername/tne-catalyst/issues
+- **GitHub Issues**: https://github.com/thenexusengine/tne_springwire/issues
 - **Discord**: https://discord.gg/thenexusengine
 - **Email**: support@thenexusengine.com
 
