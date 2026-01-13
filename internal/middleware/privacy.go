@@ -35,6 +35,66 @@ var RequiredPurposes = []int{
 	PurposeMeasureAdPerformance, // Required for reporting
 }
 
+// PrivacyRegulation represents different privacy regulations
+type PrivacyRegulation string
+
+const (
+	RegulationGDPR     PrivacyRegulation = "GDPR"      // EU/EEA - TCF v2 consent
+	RegulationCCPA     PrivacyRegulation = "CCPA"      // California - US Privacy String
+	RegulationVCDPA    PrivacyRegulation = "VCDPA"     // Virginia - US Privacy String
+	RegulationCPA      PrivacyRegulation = "CPA"       // Colorado - US Privacy String
+	RegulationCTDPA    PrivacyRegulation = "CTDPA"     // Connecticut - US Privacy String
+	RegulationUCPA     PrivacyRegulation = "UCPA"      // Utah - US Privacy String
+	RegulationLGPD     PrivacyRegulation = "LGPD"      // Brazil
+	RegulationPIPEDA   PrivacyRegulation = "PIPEDA"    // Canada
+	RegulationPDPA     PrivacyRegulation = "PDPA"      // Singapore
+	RegulationNone     PrivacyRegulation = "NONE"      // No applicable regulation
+)
+
+// GDPR Countries (EU/EEA + UK) - ISO 3166-1 alpha-3 codes
+var gdprCountries = map[string]bool{
+	"AUT": true, // Austria
+	"BEL": true, // Belgium
+	"BGR": true, // Bulgaria
+	"HRV": true, // Croatia
+	"CYP": true, // Cyprus
+	"CZE": true, // Czech Republic
+	"DNK": true, // Denmark
+	"EST": true, // Estonia
+	"FIN": true, // Finland
+	"FRA": true, // France
+	"DEU": true, // Germany
+	"GRC": true, // Greece
+	"HUN": true, // Hungary
+	"IRL": true, // Ireland
+	"ITA": true, // Italy
+	"LVA": true, // Latvia
+	"LTU": true, // Lithuania
+	"LUX": true, // Luxembourg
+	"MLT": true, // Malta
+	"NLD": true, // Netherlands
+	"POL": true, // Poland
+	"PRT": true, // Portugal
+	"ROU": true, // Romania
+	"SVK": true, // Slovakia
+	"SVN": true, // Slovenia
+	"ESP": true, // Spain
+	"SWE": true, // Sweden
+	"GBR": true, // United Kingdom
+	"ISL": true, // Iceland (EEA)
+	"LIE": true, // Liechtenstein (EEA)
+	"NOR": true, // Norway (EEA)
+}
+
+// US States with privacy laws - Two-letter state codes
+var usPrivacyStates = map[string]PrivacyRegulation{
+	"CA": RegulationCCPA,   // California - CCPA
+	"VA": RegulationVCDPA,  // Virginia - VCDPA
+	"CO": RegulationCPA,    // Colorado - CPA
+	"CT": RegulationCTDPA,  // Connecticut - CTDPA
+	"UT": RegulationUCPA,   // Utah - UCPA
+}
+
 // PrivacyConfig configures the privacy middleware behavior
 type PrivacyConfig struct {
 	// EnforceGDPR requires valid consent when regs.gdpr=1
@@ -43,6 +103,9 @@ type PrivacyConfig struct {
 	EnforceCOPPA bool
 	// EnforceCCPA blocks/strips data when user opts out
 	EnforceCCPA bool
+	// GeoEnforcement validates consent strings match user's geographic location
+	// When enabled, verifies EU users have GDPR consent, CA users have CCPA, etc.
+	GeoEnforcement bool
 	// RequiredPurposes - TCF purposes required for processing (default: 1, 2, 7)
 	RequiredPurposes []int
 	// StrictMode - if true, reject invalid consent strings; if false, strip PII
@@ -56,6 +119,7 @@ type PrivacyConfig struct {
 //   - PBS_ENFORCE_GDPR: "true" or "false" (default: true)
 //   - PBS_ENFORCE_COPPA: "true" or "false" (default: true)
 //   - PBS_ENFORCE_CCPA: "true" or "false" (default: true)
+//   - PBS_GEO_ENFORCEMENT: "true" or "false" (default: true)
 //   - PBS_PRIVACY_STRICT_MODE: "true" or "false" (default: true)
 //   - PBS_ANONYMIZE_IP: "true" or "false" (default: true)
 func DefaultPrivacyConfig() PrivacyConfig {
@@ -63,6 +127,7 @@ func DefaultPrivacyConfig() PrivacyConfig {
 		EnforceGDPR:      getEnvBool("PBS_ENFORCE_GDPR", true),
 		EnforceCOPPA:     getEnvBool("PBS_ENFORCE_COPPA", true),
 		EnforceCCPA:      getEnvBool("PBS_ENFORCE_CCPA", true),
+		GeoEnforcement:   getEnvBool("PBS_GEO_ENFORCEMENT", true),
 		RequiredPurposes: RequiredPurposes,
 		StrictMode:       getEnvBool("PBS_PRIVACY_STRICT_MODE", true),
 		AnonymizeIP:      getEnvBool("PBS_ANONYMIZE_IP", true),
@@ -169,8 +234,104 @@ type PrivacyViolation struct {
 	NoBidReason openrtb.NoBidReason // P2-7: Using consolidated type from openrtb
 }
 
+// detectApplicableRegulation determines which privacy regulation applies based on user geo
+func (m *PrivacyMiddleware) detectApplicableRegulation(req *openrtb.BidRequest) PrivacyRegulation {
+	if req.Device == nil || req.Device.Geo == nil {
+		return RegulationNone
+	}
+
+	geo := req.Device.Geo
+
+	// Check GDPR countries (EU/EEA + UK)
+	if geo.Country != "" && gdprCountries[geo.Country] {
+		return RegulationGDPR
+	}
+
+	// Check US state privacy laws
+	if geo.Country == "USA" && geo.Region != "" {
+		if regulation, exists := usPrivacyStates[geo.Region]; exists {
+			return regulation
+		}
+		// Other US states without specific laws
+		return RegulationNone
+	}
+
+	// Check other countries with privacy laws
+	switch geo.Country {
+	case "BRA": // Brazil
+		return RegulationLGPD
+	case "CAN": // Canada
+		return RegulationPIPEDA
+	case "SGP": // Singapore
+		return RegulationPDPA
+	}
+
+	return RegulationNone
+}
+
+// validateGeoConsent checks if the request has appropriate consent for the detected geo
+func (m *PrivacyMiddleware) validateGeoConsent(req *openrtb.BidRequest) *PrivacyViolation {
+	if !m.config.GeoEnforcement {
+		return nil // Geo enforcement disabled
+	}
+
+	detectedReg := m.detectApplicableRegulation(req)
+
+	// If no specific regulation applies by geo, no geo-based enforcement needed
+	if detectedReg == RegulationNone {
+		return nil
+	}
+
+	// Check if request has appropriate consent signals for detected regulation
+	switch detectedReg {
+	case RegulationGDPR:
+		// EU user should have GDPR flag and TCF consent
+		if req.Regs == nil || req.Regs.GDPR == nil || *req.Regs.GDPR != 1 {
+			logger.Log.Warn().
+				Str("request_id", req.ID).
+				Str("country", req.Device.Geo.Country).
+				Msg("EU user detected but no GDPR flag set")
+			return &PrivacyViolation{
+				Regulation:  "GDPR",
+				Reason:      "User in EU/EEA but GDPR consent not provided (regs.gdpr must be 1)",
+				NoBidReason: openrtb.NoBidAdsNotAllowed,
+			}
+		}
+
+	case RegulationCCPA, RegulationVCDPA, RegulationCPA, RegulationCTDPA, RegulationUCPA:
+		// US state with privacy law should have US Privacy String
+		if req.Regs == nil || req.Regs.USPrivacy == "" {
+			logger.Log.Warn().
+				Str("request_id", req.ID).
+				Str("country", req.Device.Geo.Country).
+				Str("region", req.Device.Geo.Region).
+				Str("regulation", string(detectedReg)).
+				Msg("US privacy state detected but no US Privacy String provided")
+			return &PrivacyViolation{
+				Regulation:  string(detectedReg),
+				Reason:      "User in US privacy state but consent string not provided (regs.us_privacy required)",
+				NoBidReason: openrtb.NoBidAdsNotAllowed,
+			}
+		}
+
+	case RegulationLGPD, RegulationPIPEDA, RegulationPDPA:
+		// Other regulations - log but don't block (not fully implemented yet)
+		logger.Log.Info().
+			Str("request_id", req.ID).
+			Str("country", req.Device.Geo.Country).
+			Str("regulation", string(detectedReg)).
+			Msg("Privacy regulation detected - enforcement not yet implemented")
+	}
+
+	return nil
+}
+
 // checkPrivacyCompliance verifies the request meets privacy requirements
 func (m *PrivacyMiddleware) checkPrivacyCompliance(req *openrtb.BidRequest) *PrivacyViolation {
+	// First check geo-based consent requirements
+	if violation := m.validateGeoConsent(req); violation != nil {
+		return violation
+	}
 	// Check COPPA compliance
 	if m.config.EnforceCOPPA && req.Regs != nil && req.Regs.COPPA == 1 {
 		// COPPA requests require special handling - we block by default
@@ -346,6 +507,58 @@ func (m *PrivacyMiddleware) parseTCFv2String(consent string) (*TCFv2Data, error)
 		data.PurposeConsents[i] = reader.readBool()
 	}
 
+	// Purpose legitimate interests (24 bits) - skip for now
+	reader.readInt(24)
+
+	// Special purposes (12 bits) - skip
+	reader.readInt(12)
+
+	// Features (24 bits) - skip
+	reader.readInt(24)
+
+	// Special features (12 bits) - skip
+	reader.readInt(12)
+
+	// Purpose legitimate interest (24 bits) - skip
+	reader.readInt(24)
+
+	// NumEntries for publisher purposes (12 bits) - skip
+	reader.readInt(12)
+
+	// Parse MaxVendorId for the consent section (16 bits)
+	maxVendorID := reader.readInt(16)
+
+	// IsRangeEncoding (1 bit)
+	isRangeEncoding := reader.readBool()
+
+	if isRangeEncoding {
+		// Range encoding: parse vendor consent ranges
+		numEntries := reader.readInt(12)
+		for i := 0; i < numEntries; i++ {
+			isRange := reader.readBool()
+			if isRange {
+				// Range: start and end vendor IDs
+				startVendorID := reader.readInt(16)
+				endVendorID := reader.readInt(16)
+				// Mark all vendors in range as consented
+				for vendorID := startVendorID; vendorID <= endVendorID; vendorID++ {
+					data.VendorConsents[vendorID] = true
+				}
+			} else {
+				// Single vendor ID
+				vendorID := reader.readInt(16)
+				data.VendorConsents[vendorID] = true
+			}
+		}
+	} else {
+		// BitField encoding: one bit per vendor up to MaxVendorId
+		for vendorID := 1; vendorID <= maxVendorID; vendorID++ {
+			if reader.readBool() {
+				data.VendorConsents[vendorID] = true
+			}
+		}
+	}
+
 	return data, nil
 }
 
@@ -364,6 +577,175 @@ func (m *PrivacyMiddleware) checkPurposeConsents(data *TCFv2Data, required []int
 		}
 	}
 	return missing
+}
+
+// CheckVendorConsent checks if a specific vendor (GVL ID) has consent
+// Returns true if the vendor has consent, false otherwise
+func (m *PrivacyMiddleware) CheckVendorConsent(consentString string, gvlID int) bool {
+	if consentString == "" || gvlID <= 0 {
+		return false
+	}
+
+	// Parse TCF consent string
+	tcfData, err := m.parseTCFv2String(consentString)
+	if err != nil {
+		logger.Log.Debug().
+			Err(err).
+			Int("gvl_id", gvlID).
+			Msg("Failed to parse TCF string for vendor consent check")
+		return false
+	}
+
+	if tcfData == nil || tcfData.VendorConsents == nil {
+		return false
+	}
+
+	// Check if vendor has consent
+	hasConsent, exists := tcfData.VendorConsents[gvlID]
+	return exists && hasConsent
+}
+
+// CheckVendorConsents checks multiple vendor IDs and returns which ones are missing consent
+// Returns a map of vendor ID -> has consent
+func (m *PrivacyMiddleware) CheckVendorConsents(consentString string, gvlIDs []int) map[int]bool {
+	result := make(map[int]bool)
+
+	if consentString == "" {
+		// No consent string - all vendors lack consent
+		for _, gvlID := range gvlIDs {
+			result[gvlID] = false
+		}
+		return result
+	}
+
+	// Parse TCF consent string
+	tcfData, err := m.parseTCFv2String(consentString)
+	if err != nil {
+		logger.Log.Debug().
+			Err(err).
+			Msg("Failed to parse TCF string for vendor consent check")
+		for _, gvlID := range gvlIDs {
+			result[gvlID] = false
+		}
+		return result
+	}
+
+	if tcfData == nil || tcfData.VendorConsents == nil {
+		for _, gvlID := range gvlIDs {
+			result[gvlID] = false
+		}
+		return result
+	}
+
+	// Check each vendor
+	for _, gvlID := range gvlIDs {
+		hasConsent, exists := tcfData.VendorConsents[gvlID]
+		result[gvlID] = exists && hasConsent
+	}
+
+	return result
+}
+
+// CheckVendorConsentStatic is a standalone function that can be called without a middleware instance
+// This is useful for the exchange to check vendor consents during auction
+func CheckVendorConsentStatic(consentString string, gvlID int) bool {
+	if consentString == "" || gvlID <= 0 {
+		return false
+	}
+
+	// Create a temporary middleware to use its parsing logic
+	m := &PrivacyMiddleware{}
+	tcfData, err := m.parseTCFv2String(consentString)
+	if err != nil {
+		return false
+	}
+
+	if tcfData == nil || tcfData.VendorConsents == nil {
+		return false
+	}
+
+	hasConsent, exists := tcfData.VendorConsents[gvlID]
+	return exists && hasConsent
+}
+
+// DetectRegulationFromGeo determines which privacy regulation applies based on device geo
+// This is a standalone function for use in the exchange during auction
+func DetectRegulationFromGeo(geo *openrtb.Geo) PrivacyRegulation {
+	if geo == nil {
+		return RegulationNone
+	}
+
+	// Check GDPR countries (EU/EEA + UK)
+	if geo.Country != "" && gdprCountries[geo.Country] {
+		return RegulationGDPR
+	}
+
+	// Check US state privacy laws
+	if geo.Country == "USA" && geo.Region != "" {
+		if regulation, exists := usPrivacyStates[geo.Region]; exists {
+			return regulation
+		}
+		return RegulationNone
+	}
+
+	// Check other countries with privacy laws
+	switch geo.Country {
+	case "BRA":
+		return RegulationLGPD
+	case "CAN":
+		return RegulationPIPEDA
+	case "SGP":
+		return RegulationPDPA
+	}
+
+	return RegulationNone
+}
+
+// ShouldFilterBidderByGeo checks if a bidder should be filtered based on geo and consent
+// Returns true if bidder should be SKIPPED (filtered out)
+func ShouldFilterBidderByGeo(req *openrtb.BidRequest, gvlID int) bool {
+	if req == nil || req.Device == nil || req.Device.Geo == nil {
+		return false // No geo data, can't filter
+	}
+
+	regulation := DetectRegulationFromGeo(req.Device.Geo)
+
+	switch regulation {
+	case RegulationGDPR:
+		// For GDPR, check if regs.gdpr is set and if bidder has consent
+		if req.Regs != nil && req.Regs.GDPR != nil && *req.Regs.GDPR == 1 {
+			// GDPR applies - check vendor consent
+			if gvlID > 0 {
+				consentString := ""
+				if req.User != nil {
+					consentString = req.User.Consent
+				}
+				// Filter out (return true) if no consent
+				return !CheckVendorConsentStatic(consentString, gvlID)
+			}
+		}
+
+	case RegulationCCPA, RegulationVCDPA, RegulationCPA, RegulationCTDPA, RegulationUCPA:
+		// For US privacy states, check if user has opted out
+		if req.Regs != nil && len(req.Regs.USPrivacy) >= 3 {
+			// Position 2 in US Privacy String indicates opt-out
+			// 'Y' means user HAS opted out (filter the bidder)
+			// 'N' means user has NOT opted out (allow the bidder)
+			optOut := req.Regs.USPrivacy[2]
+			return optOut == 'Y' // Filter if opted out
+		}
+
+	case RegulationLGPD, RegulationPIPEDA, RegulationPDPA:
+		// Other regulations not yet fully implemented
+		// Don't filter for now
+		return false
+
+	case RegulationNone:
+		// No applicable regulation
+		return false
+	}
+
+	return false
 }
 
 // TCF parsing errors

@@ -1,9 +1,10 @@
 #!/bin/bash
-# Publisher Management Script for Catalyst
+# Publisher Management Script for Catalyst (PostgreSQL)
 # Usage: ./manage-publishers.sh <command> [options]
 
-REDIS_CONTAINER="catalyst-redis"
-REDIS_KEY="tne_catalyst:publishers"
+POSTGRES_CONTAINER="catalyst-postgres"
+DB_NAME="${DB_NAME:-catalyst}"
+DB_USER="${DB_USER:-catalyst}"
 
 # Colors
 GREEN='\033[0;32m'
@@ -12,13 +13,19 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Check if Redis is running
-check_redis() {
-    if ! docker ps | grep -q $REDIS_CONTAINER; then
-        echo -e "${RED}Error: Redis container '$REDIS_CONTAINER' not running${NC}"
+# Check if PostgreSQL is running
+check_postgres() {
+    if ! docker ps | grep -q $POSTGRES_CONTAINER; then
+        echo -e "${RED}Error: PostgreSQL container '$POSTGRES_CONTAINER' not running${NC}"
         echo -e "${YELLOW}Start with: docker compose up -d${NC}"
         exit 1
     fi
+}
+
+# Execute SQL query
+exec_sql() {
+    local query="$1"
+    docker exec $POSTGRES_CONTAINER psql -U $DB_USER -d $DB_NAME -t -A -c "$query" 2>/dev/null
 }
 
 # List all publishers
@@ -27,24 +34,26 @@ list_publishers() {
     echo -e "${GREEN}Registered Publishers in Catalyst${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
 
-    local output=$(docker exec $REDIS_CONTAINER redis-cli HGETALL $REDIS_KEY 2>/dev/null)
+    local query="SELECT publisher_id, name, allowed_domains, status FROM publishers ORDER BY publisher_id;"
+    local output=$(exec_sql "$query")
 
     if [ -z "$output" ]; then
         echo -e "${YELLOW}No publishers registered yet${NC}"
         echo ""
         echo "Add your first publisher:"
-        echo "  $0 add pub123 'example.com'"
+        echo "  $0 add totalsportspro 'Total Sports Pro' 'totalsportspro.com'"
         return
     fi
 
-    echo "$output" | awk '
-        NR%2==1 { pub=$0 }
-        NR%2==0 {
-            printf "  %-25s → %s\n", pub, $0
-        }'
+    echo ""
+    printf "%-20s %-30s %-30s %s\n" "PUBLISHER ID" "NAME" "DOMAINS" "STATUS"
+    echo "─────────────────────────────────────────────────────────────────────────────────────────"
 
-    local count=$(echo "$output" | wc -l)
-    count=$((count / 2))
+    echo "$output" | while IFS='|' read -r pub_id name domains status; do
+        printf "%-20s %-30s %-30s %s\n" "$pub_id" "$name" "$domains" "$status"
+    done
+
+    local count=$(echo "$output" | wc -l | tr -d ' ')
     echo ""
     echo -e "${GREEN}Total: $count publisher(s)${NC}"
 }
@@ -52,36 +61,48 @@ list_publishers() {
 # Add publisher
 add_publisher() {
     local pub_id=$1
-    local domains=$2
+    local name=$2
+    local domains=$3
+    local bidder_params=${4:-'{}'}
 
-    if [ -z "$pub_id" ] || [ -z "$domains" ]; then
+    if [ -z "$pub_id" ] || [ -z "$name" ] || [ -z "$domains" ]; then
         echo -e "${RED}Error: Missing arguments${NC}"
         echo ""
-        echo "Usage: $0 add <publisher_id> <domains>"
+        echo "Usage: $0 add <publisher_id> <name> <domains> [bidder_params]"
         echo ""
         echo "Examples:"
-        echo "  $0 add pub123 'example.com'"
-        echo "  $0 add pub456 'example.com|*.example.com'"
-        echo "  $0 add pub789 '*'  # Allow any domain (testing only)"
+        echo "  $0 add totalsportspro 'Total Sports Pro' 'totalsportspro.com'"
+        echo "  $0 add publisher2 'Publisher 2' 'example.com|*.example.com'"
+        echo "  $0 add testpub 'Test Publisher' '*' '{\"rubicon\":{\"accountId\":123}}'"
         exit 1
     fi
 
     # Check if already exists
-    local existing=$(docker exec $REDIS_CONTAINER redis-cli HGET $REDIS_KEY "$pub_id" 2>/dev/null)
+    local existing=$(exec_sql "SELECT publisher_id FROM publishers WHERE publisher_id='$pub_id';")
     if [ -n "$existing" ]; then
-        echo -e "${YELLOW}Warning: Publisher '$pub_id' already exists with domains: $existing${NC}"
-        echo -e "${YELLOW}Use 'update' command to change domains${NC}"
+        echo -e "${YELLOW}Warning: Publisher '$pub_id' already exists${NC}"
+        echo -e "${YELLOW}Use 'update' command to change configuration${NC}"
         exit 1
     fi
 
-    docker exec $REDIS_CONTAINER redis-cli HSET $REDIS_KEY "$pub_id" "$domains" > /dev/null
-    echo -e "${GREEN}✓ Successfully added publisher${NC}"
-    echo ""
-    echo -e "  Publisher ID: ${BLUE}$pub_id${NC}"
-    echo -e "  Allowed Domains: ${BLUE}$domains${NC}"
-    echo ""
-    echo -e "${YELLOW}Remember to also configure CORS:${NC}"
-    echo "  CORS_ALLOWED_ORIGINS=https://yourdomain.com"
+    # Insert publisher
+    local query="INSERT INTO publishers (publisher_id, name, allowed_domains, bidder_params, status) VALUES ('$pub_id', '$name', '$domains', '$bidder_params'::jsonb, 'active');"
+    exec_sql "$query"
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Successfully added publisher${NC}"
+        echo ""
+        echo -e "  Publisher ID: ${BLUE}$pub_id${NC}"
+        echo -e "  Name: ${BLUE}$name${NC}"
+        echo -e "  Allowed Domains: ${BLUE}$domains${NC}"
+        echo -e "  Bidder Params: ${BLUE}$bidder_params${NC}"
+        echo ""
+        echo -e "${YELLOW}Remember to configure CORS if needed:${NC}"
+        echo "  CORS_ALLOWED_ORIGINS=https://yourdomain.com"
+    else
+        echo -e "${RED}✗ Failed to add publisher${NC}"
+        exit 1
+    fi
 }
 
 # Remove publisher
@@ -94,20 +115,23 @@ remove_publisher() {
         echo "Usage: $0 remove <publisher_id>"
         echo ""
         echo "Example:"
-        echo "  $0 remove pub123"
+        echo "  $0 remove totalsportspro"
         exit 1
     fi
 
     # Check if exists
-    local existing=$(docker exec $REDIS_CONTAINER redis-cli HGET $REDIS_KEY "$pub_id" 2>/dev/null)
+    local existing=$(exec_sql "SELECT publisher_id, name FROM publishers WHERE publisher_id='$pub_id';")
     if [ -z "$existing" ]; then
         echo -e "${YELLOW}Publisher '$pub_id' not found${NC}"
         exit 1
     fi
 
-    docker exec $REDIS_CONTAINER redis-cli HDEL $REDIS_KEY "$pub_id" > /dev/null
-    echo -e "${GREEN}✓ Successfully removed publisher: $pub_id${NC}"
-    echo -e "${YELLOW}Previous domains were: $existing${NC}"
+    # Soft delete (archive)
+    local query="UPDATE publishers SET status='archived' WHERE publisher_id='$pub_id';"
+    exec_sql "$query"
+
+    echo -e "${GREEN}✓ Successfully archived publisher: $pub_id${NC}"
+    echo -e "${YELLOW}Previous details: $existing${NC}"
 }
 
 # Check publisher
@@ -120,24 +144,29 @@ check_publisher() {
         echo "Usage: $0 check <publisher_id>"
         echo ""
         echo "Example:"
-        echo "  $0 check pub123"
+        echo "  $0 check totalsportspro"
         exit 1
     fi
 
-    local domains=$(docker exec $REDIS_CONTAINER redis-cli HGET $REDIS_KEY "$pub_id" 2>/dev/null)
+    local query="SELECT publisher_id, name, allowed_domains, bidder_params, status, created_at FROM publishers WHERE publisher_id='$pub_id';"
+    local output=$(exec_sql "$query")
 
     echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
-    if [ -z "$domains" ]; then
+    if [ -z "$output" ]; then
         echo -e "${YELLOW}Publisher '$pub_id' NOT REGISTERED${NC}"
         echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
         echo ""
         echo "Add this publisher:"
-        echo "  $0 add $pub_id 'example.com'"
+        echo "  $0 add $pub_id 'Publisher Name' 'domain.com'"
     else
+        IFS='|' read -r pub_id name domains bidder_params status created_at <<< "$output"
         echo -e "${GREEN}Publisher: $pub_id${NC}"
         echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
-        echo -e "  Status: ${GREEN}REGISTERED${NC}"
+        echo -e "  Name: ${GREEN}$name${NC}"
+        echo -e "  Status: ${GREEN}$status${NC}"
         echo -e "  Allowed Domains: ${BLUE}$domains${NC}"
+        echo -e "  Bidder Params: ${BLUE}$bidder_params${NC}"
+        echo -e "  Created: ${BLUE}$created_at${NC}"
 
         # Parse and display domains
         echo ""
@@ -147,184 +176,121 @@ check_publisher() {
             domain=$(echo "$domain" | xargs) # trim whitespace
             if [ "$domain" = "*" ]; then
                 echo -e "  • ${YELLOW}$domain${NC} (any domain - permissive!)"
-            elif [[ "$domain" == \*.* ]]; then
+            elif [[ "$domain" == \** ]]; then
                 echo -e "  • ${BLUE}$domain${NC} (wildcard subdomain)"
             else
-                echo -e "  • ${GREEN}$domain${NC} (exact match)"
+                echo -e "  • ${BLUE}$domain${NC}"
             fi
         done
     fi
-    echo ""
 }
 
-# Update publisher domains
+# Update publisher
 update_publisher() {
     local pub_id=$1
-    local domains=$2
+    local field=$2
+    local value=$3
 
-    if [ -z "$pub_id" ] || [ -z "$domains" ]; then
+    if [ -z "$pub_id" ] || [ -z "$field" ] || [ -z "$value" ]; then
         echo -e "${RED}Error: Missing arguments${NC}"
         echo ""
-        echo "Usage: $0 update <publisher_id> <new_domains>"
+        echo "Usage: $0 update <publisher_id> <field> <value>"
         echo ""
-        echo "Example:"
-        echo "  $0 update pub123 'newdomain.com|*.newdomain.com'"
-        exit 1
-    fi
-
-    # Check if exists
-    local existing=$(docker exec $REDIS_CONTAINER redis-cli HGET $REDIS_KEY "$pub_id" 2>/dev/null)
-    if [ -z "$existing" ]; then
-        echo -e "${YELLOW}Warning: Publisher '$pub_id' doesn't exist${NC}"
-        echo -e "${YELLOW}Use 'add' command to create new publisher${NC}"
-        exit 1
-    fi
-
-    docker exec $REDIS_CONTAINER redis-cli HSET $REDIS_KEY "$pub_id" "$domains" > /dev/null
-    echo -e "${GREEN}✓ Successfully updated publisher${NC}"
-    echo ""
-    echo -e "  Publisher ID: ${BLUE}$pub_id${NC}"
-    echo -e "  Old Domains: ${YELLOW}$existing${NC}"
-    echo -e "  New Domains: ${GREEN}$domains${NC}"
-}
-
-# Export publishers to JSON
-export_publishers() {
-    echo -e "${BLUE}Exporting publishers...${NC}"
-
-    local output=$(docker exec $REDIS_CONTAINER redis-cli HGETALL $REDIS_KEY 2>/dev/null)
-
-    if [ -z "$output" ]; then
-        echo -e "${YELLOW}No publishers to export${NC}"
-        return
-    fi
-
-    local filename="publishers-export-$(date +%Y%m%d-%H%M%S).json"
-
-    echo "{" > "$filename"
-    echo "  \"exported_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> "$filename"
-    echo "  \"publishers\": {" >> "$filename"
-
-    local first=true
-    echo "$output" | awk '
-        NR%2==1 { pub=$0 }
-        NR%2==0 {
-            if (!first) printf ",\n"
-            printf "    \"%s\": \"%s\"", pub, $0
-            first=0
-        }' >> "$filename"
-
-    echo "" >> "$filename"
-    echo "  }" >> "$filename"
-    echo "}" >> "$filename"
-
-    echo -e "${GREEN}✓ Exported to: $filename${NC}"
-}
-
-# Import publishers from JSON
-import_publishers() {
-    local filename=$1
-
-    if [ -z "$filename" ]; then
-        echo -e "${RED}Error: Missing filename${NC}"
+        echo "Fields: name, allowed_domains, bidder_params, status"
         echo ""
-        echo "Usage: $0 import <filename.json>"
+        echo "Examples:"
+        echo "  $0 update totalsportspro name 'New Publisher Name'"
+        echo "  $0 update totalsportspro allowed_domains 'newdomain.com'"
+        echo "  $0 update totalsportspro bidder_params '{\"rubicon\":{\"accountId\":999}}'"
+        echo "  $0 update totalsportspro status 'paused'"
         exit 1
     fi
 
-    if [ ! -f "$filename" ]; then
-        echo -e "${RED}Error: File not found: $filename${NC}"
-        exit 1
-    fi
+    # Validate field
+    case $field in
+        name|allowed_domains|status)
+            local query="UPDATE publishers SET $field='$value' WHERE publisher_id='$pub_id';"
+            ;;
+        bidder_params)
+            local query="UPDATE publishers SET $field='$value'::jsonb WHERE publisher_id='$pub_id';"
+            ;;
+        *)
+            echo -e "${RED}Invalid field: $field${NC}"
+            echo "Valid fields: name, allowed_domains, bidder_params, status"
+            exit 1
+            ;;
+    esac
 
-    echo -e "${YELLOW}Importing publishers from: $filename${NC}"
-    echo ""
+    exec_sql "$query"
 
-    # Simple JSON parsing (requires jq if available, otherwise manual)
-    if command -v jq &> /dev/null; then
-        local count=0
-        while IFS="=" read -r pub_id domains; do
-            if [ -n "$pub_id" ] && [ -n "$domains" ]; then
-                docker exec $REDIS_CONTAINER redis-cli HSET $REDIS_KEY "$pub_id" "$domains" > /dev/null
-                echo -e "  ${GREEN}✓${NC} Imported: $pub_id"
-                count=$((count + 1))
-            fi
-        done < <(jq -r '.publishers | to_entries[] | "\(.key)=\(.value)"' "$filename")
-
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Successfully updated publisher${NC}"
         echo ""
-        echo -e "${GREEN}✓ Imported $count publisher(s)${NC}"
+        echo -e "  Publisher ID: ${BLUE}$pub_id${NC}"
+        echo -e "  Field: ${BLUE}$field${NC}"
+        echo -e "  New Value: ${BLUE}$value${NC}"
     else
-        echo -e "${RED}Error: jq not installed${NC}"
-        echo "Install jq: apt install jq"
+        echo -e "${RED}✗ Failed to update publisher${NC}"
+        exit 1
     fi
 }
 
 # Show help
 show_help() {
     echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}Catalyst Publisher Management${NC}"
+    echo -e "${GREEN}Catalyst Publisher Management (PostgreSQL)${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
     echo ""
     echo "Usage: $0 <command> [options]"
     echo ""
-    echo -e "${GREEN}Commands:${NC}"
-    echo "  list, ls                    List all registered publishers"
-    echo "  add <id> <domains>          Add new publisher"
-    echo "  remove, rm <id>             Remove publisher"
-    echo "  check <id>                  Check specific publisher"
-    echo "  update <id> <domains>       Update publisher domains"
-    echo "  export                      Export publishers to JSON"
-    echo "  import <file.json>          Import publishers from JSON"
+    echo "Commands:"
+    echo "  list                                  List all publishers"
+    echo "  add <id> <name> <domains> [params]   Add a new publisher"
+    echo "  remove <id>                           Archive a publisher"
+    echo "  check <id>                            Check publisher details"
+    echo "  update <id> <field> <value>           Update publisher field"
     echo ""
-    echo -e "${GREEN}Domain Format:${NC}"
-    echo "  Single domain:              example.com"
-    echo "  Multiple domains:           example.com|cdn.example.com"
-    echo "  Wildcard subdomain:         *.example.com"
-    echo "  Allow any domain:           * (testing only!)"
-    echo ""
-    echo -e "${GREEN}Examples:${NC}"
+    echo "Examples:"
     echo "  $0 list"
-    echo "  $0 add pub123 'example.com'"
-    echo "  $0 add pub456 'example.com|*.example.com'"
-    echo "  $0 check pub123"
-    echo "  $0 update pub123 'newdomain.com|*.newdomain.com'"
-    echo "  $0 remove pub123"
-    echo "  $0 export"
-    echo "  $0 import publishers.json"
+    echo "  $0 add totalsportspro 'Total Sports Pro' 'totalsportspro.com'"
+    echo "  $0 check totalsportspro"
+    echo "  $0 update totalsportspro status 'paused'"
+    echo "  $0 remove totalsportspro"
     echo ""
-    echo -e "${YELLOW}Note: Changes take effect immediately (no restart needed)${NC}"
+    echo "Bidder Parameters Example:"
+    echo "  $0 add pub123 'Publisher' 'domain.com' '{\"rubicon\":{\"accountId\":26298,\"siteId\":556630,\"zoneId\":3767186}}'"
     echo ""
 }
 
 # Main
-check_redis
-
-case "$1" in
-    list|ls)
+case "${1:-}" in
+    list)
+        check_postgres
         list_publishers
         ;;
     add)
-        add_publisher "$2" "$3"
+        check_postgres
+        add_publisher "$2" "$3" "$4" "$5"
         ;;
-    remove|rm)
+    remove)
+        check_postgres
         remove_publisher "$2"
         ;;
     check)
+        check_postgres
         check_publisher "$2"
         ;;
     update)
-        update_publisher "$2" "$3"
+        check_postgres
+        update_publisher "$2" "$3" "$4"
         ;;
-    export)
-        export_publishers
-        ;;
-    import)
-        import_publishers "$2"
-        ;;
-    help|-h|--help)
+    help|--help|-h)
         show_help
         ;;
     *)
+        echo -e "${RED}Unknown command: ${1:-}${NC}"
+        echo ""
         show_help
+        exit 1
         ;;
 esac

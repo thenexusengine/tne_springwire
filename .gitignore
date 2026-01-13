@@ -16,6 +16,9 @@ deployment/nginx-logs/
 # Docker volumes and data
 deployment/redis-data/
 
+# Docker Compose override for local development
+deployment/docker-compose.override.yml
+
 # Go build artifacts
 catalyst
 *.exe

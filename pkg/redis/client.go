@@ -110,6 +110,16 @@ func (c *Client) HGetAll(ctx context.Context, key string) (map[string]string, er
 	return c.client.HGetAll(ctx, key).Result()
 }
 
+// HSet sets a hash field value
+func (c *Client) HSet(ctx context.Context, key, field string, value interface{}) error {
+	return c.client.HSet(ctx, key, field, value).Err()
+}
+
+// HDel deletes hash fields
+func (c *Client) HDel(ctx context.Context, key string, fields ...string) error {
+	return c.client.HDel(ctx, key, fields...).Err()
+}
+
 // SMembers gets all members of a set
 func (c *Client) SMembers(ctx context.Context, key string) ([]string, error) {
 	return c.client.SMembers(ctx, key).Result()

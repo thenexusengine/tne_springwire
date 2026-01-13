@@ -490,6 +490,16 @@ func (a *GenericAdapter) GetTimeout() time.Duration {
 	return time.Duration(a.config.Endpoint.TimeoutMS) * time.Millisecond
 }
 
+// GetGVLVendorID returns the Global Vendor List ID for TCF consent checking
+func (a *GenericAdapter) GetGVLVendorID() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.config.GVLVendorID != nil {
+		return *a.config.GVLVendorID
+	}
+	return 0
+}
+
 // CanBidForPublisher checks if this bidder can bid for a specific publisher
 func (a *GenericAdapter) CanBidForPublisher(publisherID string) bool {
 	a.mu.RLock()

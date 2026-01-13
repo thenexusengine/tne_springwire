@@ -14,6 +14,58 @@ This folder contains everything needed to deploy TNE Catalyst to production at *
 
 ---
 
+## Local Development vs Server Deployment
+
+### Local Development
+
+For local development, Docker Compose automatically uses `docker-compose.override.yml` to build from your local source code:
+
+```bash
+# Create .env from dev template
+cp .env.dev .env
+
+# Start services (uses local source code via override file)
+docker compose up -d
+
+# Test the geo-consent filtering
+cd ../examples
+CATALYST_URL=http://localhost:8000 ./test-geo-consent.sh
+
+# View logs
+docker compose logs -f catalyst
+
+# Stop services
+docker compose down
+```
+
+The `docker-compose.override.yml` file (not committed to git) overrides the GitHub build context with your local code (`context: ..`).
+
+### Server Deployment
+
+On production/staging servers, explicitly use only `docker-compose.yml` to build from GitHub:
+
+```bash
+# Create .env from production template
+cp .env.production .env
+
+# Start services (builds from GitHub, ignoring override file)
+docker compose -f docker-compose.yml up -d
+
+# View logs
+docker compose -f docker-compose.yml logs -f
+
+# Stop services
+docker compose -f docker-compose.yml down
+```
+
+**Why this works:**
+- `docker-compose.yml` builds from GitHub (for servers)
+- `docker-compose.override.yml` overrides to use local code (for development)
+- Docker Compose automatically merges both files when running `docker compose up`
+- Specifying `-f docker-compose.yml` explicitly uses only that file (server mode)
+
+---
+
 ## Folder Structure
 
 ```

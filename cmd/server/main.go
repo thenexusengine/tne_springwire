@@ -24,6 +24,7 @@ import (
 	"github.com/thenexusengine/tne_springwire/internal/exchange"
 	"github.com/thenexusengine/tne_springwire/internal/metrics"
 	"github.com/thenexusengine/tne_springwire/internal/middleware"
+	"github.com/thenexusengine/tne_springwire/internal/storage"
 	"github.com/thenexusengine/tne_springwire/pkg/logger"
 	"github.com/thenexusengine/tne_springwire/pkg/redis"
 )
@@ -51,6 +52,52 @@ func main() {
 	m := metrics.NewMetrics("pbs")
 	log.Info().Msg("Prometheus metrics enabled")
 
+	// Initialize PostgreSQL database connection
+	var db *storage.BidderStore
+	var publisherStore *storage.PublisherStore
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost != "" {
+		dbPort := getEnvOrDefault("DB_PORT", "5432")
+		dbUser := getEnvOrDefault("DB_USER", "catalyst")
+		dbPassword := getEnvOrDefault("DB_PASSWORD", "")
+		dbName := getEnvOrDefault("DB_NAME", "catalyst")
+		dbSSLMode := getEnvOrDefault("DB_SSL_MODE", "disable")
+
+		dbConn, err := storage.NewDBConnection(dbHost, dbPort, dbUser, dbPassword, dbName, dbSSLMode)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to connect to PostgreSQL, database-backed features disabled")
+		} else {
+			db = storage.NewBidderStore(dbConn)
+			publisherStore = storage.NewPublisherStore(dbConn)
+
+			// Test connection
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// Load and log bidders from database
+			bidders, err := db.ListActive(ctx)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to load bidders from database")
+			} else {
+				log.Info().
+					Int("count", len(bidders)).
+					Msg("Bidders loaded from PostgreSQL")
+			}
+
+			// Test publisher store
+			publishers, err := publisherStore.List(ctx)
+			if err != nil {
+				log.Warn().Err(err).Msg("Failed to load publishers from database")
+			} else {
+				log.Info().
+					Int("count", len(publishers)).
+					Msg("Publishers loaded from PostgreSQL")
+			}
+		}
+	} else {
+		log.Info().Msg("DB_HOST not set, database-backed features disabled")
+	}
+
 	// Initialize middleware
 	cors := middleware.NewCORS(middleware.DefaultCORSConfig())
 	security := middleware.NewSecurity(nil) // Uses DefaultSecurityConfig()
@@ -63,6 +110,12 @@ func main() {
 	// Wire up metrics to middleware for observability
 	auth.SetMetrics(m)
 	rateLimiter.SetMetrics(m)
+
+	// Wire up PostgreSQL publisher store to publisher auth middleware
+	if publisherStore != nil {
+		publisherAuth.SetPublisherStore(publisherStore)
+		log.Info().Msg("Publisher store connected to authentication middleware")
+	}
 
 	log.Info().
 		Bool("cors_enabled", true).

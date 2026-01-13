@@ -83,11 +83,17 @@ type minimalBidRequest struct {
 	} `json:"app"`
 }
 
+// PublisherStore interface for database operations
+type PublisherStore interface {
+	GetByPublisherID(ctx context.Context, publisherID string) (publisher interface{}, err error)
+}
+
 // PublisherAuth provides publisher authentication for auction endpoints
 type PublisherAuth struct {
-	config      *PublisherAuthConfig
-	redisClient RedisClient
-	mu          sync.RWMutex
+	config         *PublisherAuthConfig
+	redisClient    RedisClient
+	publisherStore PublisherStore
+	mu             sync.RWMutex
 
 	// Rate limiting per publisher
 	rateLimits   map[string]*rateLimitEntry
@@ -125,6 +131,13 @@ func (p *PublisherAuth) SetRedisClient(client RedisClient) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.redisClient = client
+}
+
+// SetPublisherStore sets the PostgreSQL publisher store
+func (p *PublisherAuth) SetPublisherStore(store PublisherStore) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.publisherStore = store
 }
 
 // Middleware returns the publisher authentication middleware handler
@@ -247,14 +260,12 @@ func (p *PublisherAuth) extractPublisherInfo(req *minimalBidRequest) (publisherI
 	return
 }
 
-// validatePublisher validates the publisher ID and domain
+// validatePublisher validates the publisher ID and domain against PostgreSQL
 func (p *PublisherAuth) validatePublisher(ctx context.Context, publisherID, domain string) error {
 	p.mu.RLock()
 	allowUnregistered := p.config.AllowUnregistered
 	validateDomain := p.config.ValidateDomain
-	registeredPubs := p.config.RegisteredPubs
-	useRedis := p.config.UseRedis
-	redisClient := p.redisClient
+	publisherStore := p.publisherStore
 	p.mu.RUnlock()
 
 	// No publisher ID
@@ -265,35 +276,62 @@ func (p *PublisherAuth) validatePublisher(ctx context.Context, publisherID, doma
 		return &PublisherAuthError{Code: "missing_publisher", Message: "publisher ID required"}
 	}
 
-	// Check Redis first if available
-	if useRedis && redisClient != nil {
-		allowedDomains, err := redisClient.HGet(ctx, RedisPublishersHash, publisherID)
-		if err == nil && allowedDomains != "" {
-			if !validateDomain || allowedDomains == "*" || p.domainMatches(domain, allowedDomains) {
+	// Check PostgreSQL database (single source of truth)
+	if publisherStore != nil {
+		pub, err := publisherStore.GetByPublisherID(ctx, publisherID)
+		if err != nil {
+			return &PublisherAuthError{
+				Code:    "database_error",
+				Message: "failed to query publisher",
+				Cause:   err,
+			}
+		}
+
+		// Publisher not found in database
+		if pub == nil {
+			if allowUnregistered {
 				return nil
 			}
-			return &PublisherAuthError{Code: "domain_mismatch", Message: "domain not allowed for publisher"}
+			return &PublisherAuthError{Code: "unknown_publisher", Message: "publisher not registered"}
 		}
-		// Fall through to local config
+
+		// Extract allowed domains from publisher record
+		// The pub interface{} is expected to have an AllowedDomains string field
+		type domainProvider interface {
+			GetAllowedDomains() string
+		}
+
+		var allowedDomains string
+		if dp, ok := pub.(domainProvider); ok {
+			allowedDomains = dp.GetAllowedDomains()
+		} else {
+			// Try type assertion to map for flexibility
+			if pubMap, ok := pub.(map[string]interface{}); ok {
+				if ad, ok := pubMap["allowed_domains"].(string); ok {
+					allowedDomains = ad
+				}
+			}
+		}
+
+		// Validate domain if required
+		if validateDomain && allowedDomains != "" && allowedDomains != "*" {
+			if !p.domainMatches(domain, allowedDomains) {
+				return &PublisherAuthError{Code: "domain_mismatch", Message: "domain not allowed for publisher"}
+			}
+		}
+
+		return nil
 	}
 
-	// Check local config
-	allowedDomains, registered := registeredPubs[publisherID]
-	if !registered {
-		if allowUnregistered {
-			return nil
-		}
-		return &PublisherAuthError{Code: "unknown_publisher", Message: "publisher not registered"}
+	// No database configured - system misconfiguration
+	if allowUnregistered {
+		return nil
 	}
 
-	// Validate domain if required
-	if validateDomain && allowedDomains != "" && allowedDomains != "*" {
-		if !p.domainMatches(domain, allowedDomains) {
-			return &PublisherAuthError{Code: "domain_mismatch", Message: "domain not allowed for publisher"}
-		}
+	return &PublisherAuthError{
+		Code:    "system_error",
+		Message: "publisher database not configured",
 	}
-
-	return nil
 }
 
 // domainMatches checks if domain matches allowed domains (comma-separated)

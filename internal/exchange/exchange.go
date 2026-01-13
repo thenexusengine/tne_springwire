@@ -13,6 +13,7 @@ import (
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
 	"github.com/thenexusengine/tne_springwire/internal/adapters/ortb"
 	"github.com/thenexusengine/tne_springwire/internal/fpd"
+	"github.com/thenexusengine/tne_springwire/internal/middleware"
 	"github.com/thenexusengine/tne_springwire/internal/openrtb"
 	"github.com/thenexusengine/tne_springwire/pkg/idr"
 	"github.com/thenexusengine/tne_springwire/pkg/logger"
@@ -1052,6 +1053,41 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 					return
 				}
 
+				// Check geo-aware consent filtering (GDPR, CCPA, etc.)
+				gvlID := awi.Info.GVLVendorID
+				if middleware.ShouldFilterBidderByGeo(req, gvlID) {
+					// Detect which regulation applies
+					regulation := middleware.RegulationNone
+					if req.Device != nil && req.Device.Geo != nil {
+						regulation = middleware.DetectRegulationFromGeo(req.Device.Geo)
+					}
+
+					logger.Log.Info().
+						Str("bidder", code).
+						Int("gvl_id", gvlID).
+						Str("request_id", req.ID).
+						Str("regulation", string(regulation)).
+						Str("country", func() string {
+							if req.Device != nil && req.Device.Geo != nil {
+								return req.Device.Geo.Country
+							}
+							return ""
+						}()).
+						Str("region", func() string {
+							if req.Device != nil && req.Device.Geo != nil {
+								return req.Device.Geo.Region
+							}
+							return ""
+						}()).
+						Msg("Skipping bidder - no consent for user's geographic location")
+
+					results.Store(code, &BidderResult{
+						BidderCode: code,
+						Errors:     []error{fmt.Errorf("no %s consent for vendor %d", regulation, gvlID)},
+					})
+					return
+				}
+
 				// Clone request and apply bidder-specific FPD
 				bidderReq := e.cloneRequestWithFPD(req, code, bidderFPD)
 
@@ -1080,6 +1116,41 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 							BidderCode: code,
 							Errors:     []error{ctx.Err()},
 							TimedOut:   true,
+						})
+						return
+					}
+
+					// Check geo-aware consent filtering (GDPR, CCPA, etc.)
+					gvlID := da.GetGVLVendorID()
+					if middleware.ShouldFilterBidderByGeo(req, gvlID) {
+						// Detect which regulation applies
+						regulation := middleware.RegulationNone
+						if req.Device != nil && req.Device.Geo != nil {
+							regulation = middleware.DetectRegulationFromGeo(req.Device.Geo)
+						}
+
+						logger.Log.Info().
+							Str("bidder", code).
+							Int("gvl_id", gvlID).
+							Str("request_id", req.ID).
+							Str("regulation", string(regulation)).
+							Str("country", func() string {
+								if req.Device != nil && req.Device.Geo != nil {
+									return req.Device.Geo.Country
+								}
+								return ""
+							}()).
+							Str("region", func() string {
+								if req.Device != nil && req.Device.Geo != nil {
+									return req.Device.Geo.Region
+								}
+								return ""
+							}()).
+							Msg("Skipping dynamic bidder - no consent for user's geographic location")
+
+						results.Store(code, &BidderResult{
+							BidderCode: code,
+							Errors:     []error{fmt.Errorf("no %s consent for vendor %d", regulation, gvlID)},
 						})
 						return
 					}

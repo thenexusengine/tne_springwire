@@ -37,6 +37,12 @@ These examples show the exact request format Catalyst expects, including bidder-
 - Color-coded output for easy debugging
 - Includes verification steps and troubleshooting tips
 
+**test-tcf-consent.sh**
+- Tests TCF v2 vendor consent validation for GDPR compliance
+- Demonstrates three scenarios: with consent, without consent, and no GDPR
+- Shows how Catalyst skips bidders without proper TCF consent
+- Validates GVL ID checking for Rubicon (52), PubMatic (76), and AppNexus (32)
+
 ## Usage
 
 ### Test Rubicon Parameters
@@ -51,6 +57,52 @@ These examples show the exact request format Catalyst expects, including bidder-
 # Test against local Catalyst instance
 CATALYST_URL=http://localhost:8000 ./test-rubicon-params.sh
 ```
+
+### Test TCF Vendor Consent
+
+```bash
+# Run TCF consent validation tests
+./test-tcf-consent.sh
+
+# Test against local Catalyst instance
+CATALYST_URL=http://localhost:8000 ./test-tcf-consent.sh
+
+# Check logs to see consent validation in action
+docker compose logs -f catalyst | grep -i "TCF\|consent\|gvl"
+```
+
+This script tests three scenarios:
+1. **GDPR with consent** - Bidders with GVL IDs in consent string participate
+2. **GDPR without consent** - All bidders skipped (no consent string provided)
+3. **No GDPR flag** - Bidders participate normally (consent not required)
+
+### Test Geographic-Based Consent
+
+```bash
+# Run geo-based consent filtering tests
+./test-geo-consent.sh
+
+# Test against local Catalyst instance
+CATALYST_URL=http://localhost:8000 ./test-geo-consent.sh
+
+# Check logs to see geo-based filtering in action
+docker compose logs -f catalyst | grep -i "geographic\|regulation"
+```
+
+This script tests five scenarios across different geographic regions:
+1. **EU (Germany) with GDPR consent** - Bidders with consent participate
+2. **US-CA with CCPA opt-out** - All bidders skipped (user opted out)
+3. **US-CA without opt-out** - Bidders participate normally
+4. **Japan (no specific law)** - Bidders participate without restrictions
+5. **EU without GDPR flag** - Request blocked (400 error)
+
+**Key Features:**
+- Automatically detects applicable regulation from `device.geo.country` and `device.geo.region`
+- Validates correct consent string for detected region (TCF for EU, US Privacy for CA)
+- Filters bidders based on geo-specific consent requirements
+- Supports GDPR (EU/EEA), CCPA (California), and other US state laws (Virginia, Colorado, Connecticut, Utah)
+
+See **[GEO-CONSENT-GUIDE.md](../GEO-CONSENT-GUIDE.md)** for complete documentation on geographic-based consent filtering.
 
 ### Test with curl
 
