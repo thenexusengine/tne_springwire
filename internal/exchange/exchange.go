@@ -482,11 +482,37 @@ func (e *Exchange) validateBid(bid *openrtb.Bid, bidderCode string, impIDs map[s
 }
 
 // buildImpFloorMap creates a map of impression IDs to their floor prices
-func buildImpFloorMap(req *openrtb.BidRequest) map[string]float64 {
+// If publisher has a bid_multiplier, floors are MULTIPLIED to ensure platform gets its cut
+// Example: floor=$1, multiplier=1.05 → adjusted_floor=$1.05 (DSPs must bid at least $1.05)
+func buildImpFloorMap(ctx context.Context, req *openrtb.BidRequest) map[string]float64 {
 	impFloors := make(map[string]float64, len(req.Imp))
-	for _, imp := range req.Imp {
-		impFloors[imp.ID] = imp.BidFloor
+
+	// Get publisher's bid multiplier
+	var multiplier float64 = 1.0
+	if pub := middleware.PublisherFromContext(ctx); pub != nil {
+		if v, ok := extractBidMultiplier(pub); ok && v >= 1.0 && v <= 10.0 {
+			multiplier = v
+		}
 	}
+
+	// Build floor map with multiplier applied
+	for _, imp := range req.Imp {
+		baseFloor := imp.BidFloor
+		if multiplier != 1.0 && baseFloor > 0 {
+			// Multiply floor so DSPs must bid higher to cover platform's cut
+			impFloors[imp.ID] = roundToCents(baseFloor * multiplier)
+
+			logger.Log.Debug().
+				Str("impID", imp.ID).
+				Float64("base_floor", baseFloor).
+				Float64("multiplier", multiplier).
+				Float64("adjusted_floor", impFloors[imp.ID]).
+				Msg("Applied multiplier to floor price")
+		} else {
+			impFloors[imp.ID] = baseFloor
+		}
+	}
+
 	return impFloors
 }
 
@@ -588,6 +614,107 @@ func sortBidsByPrice(bids []ValidatedBid) {
 func roundToCents(price float64) float64 {
 	// math.Round correctly handles all cases including negative numbers and .5 values
 	return math.Round(price*100) / 100.0
+}
+
+// applyBidMultiplier applies the publisher's bid multiplier to all bids
+// This allows the platform to take a revenue share before returning bids to the publisher
+// Bid prices are DIVIDED by the multiplier
+// For example: multiplier = 1.05 means publisher gets ~95%, platform keeps ~5% of bid price
+func (e *Exchange) applyBidMultiplier(ctx context.Context, bidsByImp map[string][]ValidatedBid) map[string][]ValidatedBid {
+	// Get publisher from context (set by publisher_auth middleware)
+	pub := middleware.PublisherFromContext(ctx)
+	if pub == nil {
+		return bidsByImp // No publisher configured, no multiplier to apply
+	}
+
+	// Extract bid multiplier from publisher using reflection-safe approach
+	// The publisher is stored as interface{} but should have a BidMultiplier field
+	var multiplier float64 = 1.0 // Default: no adjustment
+
+	// Try to extract via struct field access
+	type publisherWithMultiplier struct {
+		BidMultiplier float64
+	}
+
+	// Use type switch to handle different publisher types
+	switch p := pub.(type) {
+	case *publisherWithMultiplier:
+		multiplier = p.BidMultiplier
+	default:
+		// Try to extract via reflection for any struct with BidMultiplier field
+		// This handles the actual storage.Publisher type
+		if v, ok := extractBidMultiplier(pub); ok {
+			multiplier = v
+		}
+	}
+
+	// If multiplier is 1.0 (or 0, meaning default), no adjustment needed
+	if multiplier == 0 || multiplier == 1.0 {
+		return bidsByImp
+	}
+
+	// Validate multiplier is in reasonable range (1.0 to 10.0)
+	if multiplier < 1.0 || multiplier > 10.0 {
+		logger.Log.Warn().
+			Float64("multiplier", multiplier).
+			Msg("Invalid bid multiplier, ignoring")
+		return bidsByImp
+	}
+
+	// Apply multiplier to all bid prices (DIVIDE to reduce what publisher sees)
+	for impID, bids := range bidsByImp {
+		for i := range bids {
+			if bids[i].Bid != nil && bids[i].Bid.Bid != nil {
+				originalPrice := bids[i].Bid.Bid.Price
+				adjustedPrice := roundToCents(originalPrice / multiplier)
+				platformCut := originalPrice - adjustedPrice
+
+				// Log the adjustment for transparency (debug level)
+				logger.Log.Debug().
+					Str("impID", impID).
+					Str("bidder", bids[i].BidderCode).
+					Float64("original_price", originalPrice).
+					Float64("multiplier", multiplier).
+					Float64("adjusted_price", adjustedPrice).
+					Float64("platform_cut", platformCut).
+					Msg("Applied bid multiplier")
+
+				bids[i].Bid.Bid.Price = adjustedPrice
+			}
+		}
+	}
+
+	return bidsByImp
+}
+
+// extractBidMultiplier safely extracts BidMultiplier field from any struct
+func extractBidMultiplier(v interface{}) (float64, bool) {
+	// Type assert to common publisher interface patterns
+	type bidMultiplierGetter interface {
+		GetBidMultiplier() float64
+	}
+
+	if getter, ok := v.(bidMultiplierGetter); ok {
+		return getter.GetBidMultiplier(), true
+	}
+
+	// Try direct struct field access for storage.Publisher
+	type publisherStruct struct {
+		BidMultiplier float64 `json:"bid_multiplier"`
+	}
+
+	// Use JSON marshal/unmarshal as safe reflection alternative
+	data, err := json.Marshal(v)
+	if err != nil {
+		return 0, false
+	}
+
+	var ps publisherStruct
+	if err := json.Unmarshal(data, &ps); err != nil {
+		return 0, false
+	}
+
+	return ps.BidMultiplier, true
 }
 
 // RunAuction executes the auction
@@ -795,8 +922,8 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 		// Context still valid, proceed with validation
 	}
 
-	// Build impression floor map for bid validation
-	impFloors := buildImpFloorMap(req.BidRequest)
+	// Build impression floor map for bid validation (with multiplier applied to floors)
+	impFloors := buildImpFloorMap(ctx, req.BidRequest)
 
 	// Track seen bid IDs for deduplication
 	seenBidIDs := make(map[string]struct{})
@@ -906,6 +1033,9 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 
 	// Apply auction logic (first-price or second-price)
 	auctionedBids := e.runAuctionLogic(validBids, impFloors)
+
+	// Apply bid multiplier if publisher is configured with one
+	auctionedBids = e.applyBidMultiplier(ctx, auctionedBids)
 
 	// Build seat bids with demand type obfuscation:
 	// - Platform demand: aggregated into single "thenexusengine" seat (highest bid per impression)

@@ -18,6 +18,7 @@ type Publisher struct {
 	Name           string                 `json:"name"`
 	AllowedDomains string                 `json:"allowed_domains"`
 	BidderParams   map[string]interface{} `json:"bidder_params"`
+	BidMultiplier  float64                `json:"bid_multiplier"` // Revenue share multiplier (1.0000-10.0000). Bid divided by this. 1.05 = ~5% platform cut
 	Status         string                 `json:"status"`
 	CreatedAt      time.Time              `json:"created_at"`
 	UpdatedAt      time.Time              `json:"updated_at"`
@@ -41,10 +42,16 @@ func NewPublisherStore(db *sql.DB) *PublisherStore {
 }
 
 // GetByPublisherID retrieves a publisher by their publisher_id
-func (s *PublisherStore) GetByPublisherID(ctx context.Context, publisherID string) (*Publisher, error) {
+// Returns interface{} for middleware compatibility while maintaining concrete type internally
+func (s *PublisherStore) GetByPublisherID(ctx context.Context, publisherID string) (interface{}, error) {
+	return s.getByPublisherIDConcrete(ctx, publisherID)
+}
+
+// getByPublisherIDConcrete is the internal implementation returning concrete type
+func (s *PublisherStore) getByPublisherIDConcrete(ctx context.Context, publisherID string) (*Publisher, error) {
 	query := `
-		SELECT id, publisher_id, name, allowed_domains, bidder_params, status,
-		       created_at, updated_at, notes, contact_email
+		SELECT id, publisher_id, name, allowed_domains, bidder_params, bid_multiplier,
+		       status, created_at, updated_at, notes, contact_email
 		FROM publishers
 		WHERE publisher_id = $1 AND status = 'active'
 	`
@@ -58,6 +65,7 @@ func (s *PublisherStore) GetByPublisherID(ctx context.Context, publisherID strin
 		&p.Name,
 		&p.AllowedDomains,
 		&bidderParamsJSON,
+		&p.BidMultiplier,
 		&p.Status,
 		&p.CreatedAt,
 		&p.UpdatedAt,
@@ -85,8 +93,8 @@ func (s *PublisherStore) GetByPublisherID(ctx context.Context, publisherID strin
 // List retrieves all active publishers
 func (s *PublisherStore) List(ctx context.Context) ([]*Publisher, error) {
 	query := `
-		SELECT id, publisher_id, name, allowed_domains, bidder_params, status,
-		       created_at, updated_at, notes, contact_email
+		SELECT id, publisher_id, name, allowed_domains, bidder_params, bid_multiplier,
+		       status, created_at, updated_at, notes, contact_email
 		FROM publishers
 		WHERE status = 'active'
 		ORDER BY publisher_id
@@ -109,6 +117,7 @@ func (s *PublisherStore) List(ctx context.Context) ([]*Publisher, error) {
 			&p.Name,
 			&p.AllowedDomains,
 			&bidderParamsJSON,
+			&p.BidMultiplier,
 			&p.Status,
 			&p.CreatedAt,
 			&p.UpdatedAt,
@@ -134,10 +143,15 @@ func (s *PublisherStore) List(ctx context.Context) ([]*Publisher, error) {
 
 // Create adds a new publisher
 func (s *PublisherStore) Create(ctx context.Context, p *Publisher) error {
+	// Default to 1.0 (no adjustment) if not set
+	if p.BidMultiplier == 0 {
+		p.BidMultiplier = 1.0
+	}
+
 	query := `
 		INSERT INTO publishers (
-			publisher_id, name, allowed_domains, bidder_params, status, notes, contact_email
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			publisher_id, name, allowed_domains, bidder_params, bid_multiplier, status, notes, contact_email
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -151,6 +165,7 @@ func (s *PublisherStore) Create(ctx context.Context, p *Publisher) error {
 		p.Name,
 		p.AllowedDomains,
 		bidderParamsJSON,
+		p.BidMultiplier,
 		p.Status,
 		p.Notes,
 		p.ContactEmail,
@@ -168,8 +183,8 @@ func (s *PublisherStore) Update(ctx context.Context, p *Publisher) error {
 	query := `
 		UPDATE publishers
 		SET name = $1, allowed_domains = $2, bidder_params = $3,
-		    status = $4, notes = $5, contact_email = $6
-		WHERE publisher_id = $7
+		    bid_multiplier = $4, status = $5, notes = $6, contact_email = $7
+		WHERE publisher_id = $8
 	`
 
 	bidderParamsJSON, err := json.Marshal(p.BidderParams)
@@ -181,6 +196,7 @@ func (s *PublisherStore) Update(ctx context.Context, p *Publisher) error {
 		p.Name,
 		p.AllowedDomains,
 		bidderParamsJSON,
+		p.BidMultiplier,
 		p.Status,
 		p.Notes,
 		p.ContactEmail,

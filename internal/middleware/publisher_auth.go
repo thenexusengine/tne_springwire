@@ -114,6 +114,11 @@ const RedisPublishersHash = "tne_catalyst:publishers" // hash: publisher_id -> a
 // maxRequestBodySize limits request body reads to prevent OOM attacks (1MB)
 const maxRequestBodySize = 1024 * 1024
 
+// publisherContextKey is the context key for storing publisher objects
+type contextKey string
+
+const publisherContextKey contextKey = "publisher"
+
 // NewPublisherAuth creates a new publisher auth middleware
 func NewPublisherAuth(config *PublisherAuthConfig) *PublisherAuth {
 	if config == nil {
@@ -237,6 +242,16 @@ func (p *PublisherAuth) Middleware(next http.Handler) http.Handler {
 
 		// Add publisher ID to request context via header
 		r.Header.Set("X-Publisher-ID", publisherID)
+
+		// Retrieve and store full publisher object in context for downstream use
+		if publisherID != "" && p.publisherStore != nil {
+			pub, err := p.publisherStore.GetByPublisherID(r.Context(), publisherID)
+			if err == nil && pub != nil {
+				// Store publisher in context for exchange to access bid_multiplier
+				ctx := context.WithValue(r.Context(), publisherContextKey, pub)
+				r = r.WithContext(ctx)
+			}
+		}
 
 		// Restore body for handler
 		r.Body = io.NopCloser(bytes.NewReader(body))
@@ -499,4 +514,13 @@ func (e *PublisherAuthError) Error() string {
 // Unwrap returns the underlying cause for error chain support
 func (e *PublisherAuthError) Unwrap() error {
 	return e.Cause
+}
+
+// PublisherFromContext retrieves the publisher object from the request context
+// Returns nil if no publisher was set (e.g., unregistered publisher allowed)
+func PublisherFromContext(ctx context.Context) interface{} {
+	if pub := ctx.Value(publisherContextKey); pub != nil {
+		return pub
+	}
+	return nil
 }

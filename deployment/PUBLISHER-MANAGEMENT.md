@@ -121,6 +121,152 @@ Bidder parameters are stored as JSONB in this format:
 }
 ```
 
+## Bid Multiplier (Revenue Sharing)
+
+The `bid_multiplier` field enables transparent revenue sharing between the platform and publishers. This allows Catalyst to take a percentage cut while ensuring publishers meet their floor prices.
+
+### How It Works
+
+The bid multiplier affects TWO critical points in the auction:
+
+1. **Floor Prices** - Multiplied UP before auction
+2. **Winning Bids** - Divided DOWN before returning to publisher
+
+#### Example Flow (5% Platform Cut)
+
+**Publisher Config:**
+```json
+{
+  "publisher_id": "totalsportspro",
+  "bid_multiplier": 1.05,
+  "floor_price": 0.50
+}
+```
+
+**Auction Flow:**
+1. Publisher sets floor: £0.50
+2. Catalyst multiplies: £0.50 × 1.05 = £0.525 (adjusted floor)
+3. DSPs bid against £0.525 floor
+4. Winning bid: £0.60 (meets adjusted floor)
+5. Catalyst divides: £0.60 ÷ 1.05 = £0.571 (returned to publisher)
+6. Platform keeps: £0.60 - £0.571 = £0.029 (~5%)
+
+**Result:** Publisher receives £0.571 (above their £0.50 floor), platform keeps ~5%
+
+### Multiplier Values
+
+| Multiplier | Platform Cut | Publisher Receives | Example (£1 bid) |
+|------------|--------------|-------------------|------------------|
+| 1.00 | 0% | 100% | £1.00 → £1.00 |
+| 1.05 | ~5% | ~95% | £1.00 → £0.95 |
+| 1.11 | ~10% | ~90% | £1.00 → £0.90 |
+| 1.25 | ~20% | ~80% | £1.00 → £0.80 |
+
+**Formula:**
+- Platform cut = 1 - (1 / multiplier)
+- Publisher receives = bid / multiplier
+- Adjusted floor = floor × multiplier
+
+### Setting Bid Multipliers
+
+**Add publisher with multiplier:**
+```bash
+# Publisher with 5% platform cut
+./manage-publishers.sh add publisher1 'Publisher Name' 'domain.com' '{}'
+./manage-publishers.sh update publisher1 bid_multiplier 1.05
+```
+
+**Update existing publisher:**
+```bash
+# Set 5% platform cut
+./manage-publishers.sh update totalsportspro bid_multiplier 1.05
+
+# Set 10% platform cut
+./manage-publishers.sh update totalsportspro bid_multiplier 1.11
+
+# Remove cut (100% to publisher)
+./manage-publishers.sh update totalsportspro bid_multiplier 1.00
+```
+
+**Check current multiplier:**
+```bash
+./manage-publishers.sh check totalsportspro
+```
+
+Output:
+```
+═══════════════════════════════════════════════════
+Publisher: totalsportspro
+═══════════════════════════════════════════════════
+  Name: Total Sports Pro
+  Status: active
+  Allowed Domains: totalsportspro.com
+  Bid Multiplier: 1.05 (platform keeps ~4.8%)
+  Bidder Params: {...}
+  Created: 2026-01-13 22:00:00
+```
+
+### Database Schema
+
+The `bid_multiplier` column:
+
+```sql
+ALTER TABLE publishers
+ADD COLUMN bid_multiplier DECIMAL(6,4) DEFAULT 1.0000
+CHECK (bid_multiplier >= 1.0000 AND bid_multiplier <= 10.0000);
+```
+
+- **Type:** DECIMAL(6,4) for precise calculations
+- **Range:** 1.0000 to 10.0000 (0% to ~90% cut)
+- **Default:** 1.0000 (no adjustment)
+
+### Why This Approach?
+
+**Protects Publisher Floors:**
+- Publisher sets £0.50 floor
+- Without multiplier adjustment, DSP bids £0.52
+- After platform 5% cut: £0.494 (below publisher floor!) ❌
+
+**With Multiplier:**
+- Publisher sets £0.50 floor
+- Floor adjusted to £0.525 before auction
+- DSP bids £0.60 (meets adjusted floor)
+- After platform cut: £0.571 (above publisher floor!) ✓
+
+### Optimization
+
+The `bid_multiplier` can be optimized based on:
+- Publisher performance metrics
+- Fill rates and win rates
+- Competitive landscape
+- Publisher tier (premium vs standard)
+
+**Example tiered structure:**
+```sql
+-- Premium publishers (lower cut)
+UPDATE publishers SET bid_multiplier = 1.03 WHERE tier = 'premium';
+
+-- Standard publishers
+UPDATE publishers SET bid_multiplier = 1.05 WHERE tier = 'standard';
+
+-- Trial publishers (higher cut)
+UPDATE publishers SET bid_multiplier = 1.10 WHERE tier = 'trial';
+```
+
+### Transparency
+
+While the multiplier is transparent in the platform's operations, publishers see:
+- Their configured floor prices remain unchanged
+- Bid prices are always above their floors
+- Consistent auction mechanics
+- Platform takes agreed percentage
+
+The multiplier is logged in debug mode:
+```
+Applied multiplier to floor price: imp=123 base_floor=0.50 multiplier=1.05 adjusted_floor=0.525
+Applied bid multiplier: bidder=rubicon original=0.60 adjusted=0.571 platform_cut=0.029
+```
+
 ## Management Script
 
 Use `/Users/andrewstreets/tne-catalyst/deployment/manage-publishers.sh` to manage publishers.

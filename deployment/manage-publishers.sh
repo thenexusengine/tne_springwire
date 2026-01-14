@@ -34,7 +34,7 @@ list_publishers() {
     echo -e "${GREEN}Registered Publishers in Catalyst${NC}"
     echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
 
-    local query="SELECT publisher_id, name, allowed_domains, status FROM publishers ORDER BY publisher_id;"
+    local query="SELECT publisher_id, name, allowed_domains, bid_multiplier, status FROM publishers ORDER BY publisher_id;"
     local output=$(exec_sql "$query")
 
     if [ -z "$output" ]; then
@@ -46,11 +46,11 @@ list_publishers() {
     fi
 
     echo ""
-    printf "%-20s %-30s %-30s %s\n" "PUBLISHER ID" "NAME" "DOMAINS" "STATUS"
-    echo "─────────────────────────────────────────────────────────────────────────────────────────"
+    printf "%-20s %-30s %-25s %-12s %s\n" "PUBLISHER ID" "NAME" "DOMAINS" "MULTIPLIER" "STATUS"
+    echo "────────────────────────────────────────────────────────────────────────────────────────────────"
 
-    echo "$output" | while IFS='|' read -r pub_id name domains status; do
-        printf "%-20s %-30s %-30s %s\n" "$pub_id" "$name" "$domains" "$status"
+    echo "$output" | while IFS='|' read -r pub_id name domains multiplier status; do
+        printf "%-20s %-30s %-25s %-12s %s\n" "$pub_id" "$name" "$domains" "$multiplier" "$status"
     done
 
     local count=$(echo "$output" | wc -l | tr -d ' ')
@@ -148,7 +148,7 @@ check_publisher() {
         exit 1
     fi
 
-    local query="SELECT publisher_id, name, allowed_domains, bidder_params, status, created_at FROM publishers WHERE publisher_id='$pub_id';"
+    local query="SELECT publisher_id, name, allowed_domains, bidder_params, bid_multiplier, status, created_at FROM publishers WHERE publisher_id='$pub_id';"
     local output=$(exec_sql "$query")
 
     echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
@@ -159,12 +159,13 @@ check_publisher() {
         echo "Add this publisher:"
         echo "  $0 add $pub_id 'Publisher Name' 'domain.com'"
     else
-        IFS='|' read -r pub_id name domains bidder_params status created_at <<< "$output"
+        IFS='|' read -r pub_id name domains bidder_params multiplier status created_at <<< "$output"
         echo -e "${GREEN}Publisher: $pub_id${NC}"
         echo -e "${BLUE}═══════════════════════════════════════════════════${NC}"
         echo -e "  Name: ${GREEN}$name${NC}"
         echo -e "  Status: ${GREEN}$status${NC}"
         echo -e "  Allowed Domains: ${BLUE}$domains${NC}"
+        echo -e "  Bid Multiplier: ${GREEN}$multiplier${NC} (platform keeps ~$(echo \"scale=1; (1 - 1/$multiplier) * 100\" | bc)%)"
         echo -e "  Bidder Params: ${BLUE}$bidder_params${NC}"
         echo -e "  Created: ${BLUE}$created_at${NC}"
 
@@ -196,12 +197,13 @@ update_publisher() {
         echo ""
         echo "Usage: $0 update <publisher_id> <field> <value>"
         echo ""
-        echo "Fields: name, allowed_domains, bidder_params, status"
+        echo "Fields: name, allowed_domains, bidder_params, bid_multiplier, status"
         echo ""
         echo "Examples:"
         echo "  $0 update totalsportspro name 'New Publisher Name'"
         echo "  $0 update totalsportspro allowed_domains 'newdomain.com'"
         echo "  $0 update totalsportspro bidder_params '{\"rubicon\":{\"accountId\":999}}'"
+        echo "  $0 update totalsportspro bid_multiplier 0.95"
         echo "  $0 update totalsportspro status 'paused'"
         exit 1
     fi
@@ -214,9 +216,25 @@ update_publisher() {
         bidder_params)
             local query="UPDATE publishers SET $field='$value'::jsonb WHERE publisher_id='$pub_id';"
             ;;
+        bid_multiplier)
+            # Validate multiplier is between 1.0 and 10.0
+            if ! echo "$value" | grep -qE '^[0-9]*\.?[0-9]+$'; then
+                echo -e "${RED}Error: bid_multiplier must be a decimal number${NC}"
+                exit 1
+            fi
+            if (( $(echo "$value < 1.0" | bc -l) )) || (( $(echo "$value > 10.0" | bc -l) )); then
+                echo -e "${RED}Error: bid_multiplier must be between 1.0 and 10.0${NC}"
+                echo -e "${YELLOW}Example: 1.05 means platform keeps ~5%, publisher gets ~95%${NC}"
+                exit 1
+            fi
+            local query="UPDATE publishers SET $field=$value WHERE publisher_id='$pub_id';"
+            # Show revenue impact
+            local platform_cut=$(echo "scale=1; (1 - 1/$value) * 100" | bc)
+            echo -e "${YELLOW}Platform will take ~$platform_cut% revenue share${NC}"
+            ;;
         *)
             echo -e "${RED}Invalid field: $field${NC}"
-            echo "Valid fields: name, allowed_domains, bidder_params, status"
+            echo "Valid fields: name, allowed_domains, bidder_params, bid_multiplier, status"
             exit 1
             ;;
     esac
@@ -255,10 +273,17 @@ show_help() {
     echo "  $0 add totalsportspro 'Total Sports Pro' 'totalsportspro.com'"
     echo "  $0 check totalsportspro"
     echo "  $0 update totalsportspro status 'paused'"
+    echo "  $0 update totalsportspro bid_multiplier 0.95"
     echo "  $0 remove totalsportspro"
     echo ""
     echo "Bidder Parameters Example:"
     echo "  $0 add pub123 'Publisher' 'domain.com' '{\"rubicon\":{\"accountId\":26298,\"siteId\":556630,\"zoneId\":3767186}}'"
+    echo ""
+    echo "Bid Multiplier (Revenue Share):"
+    echo "  Set multiplier to control platform revenue share (bid is divided by multiplier):"
+    echo "    1.05 = platform keeps ~5%, publisher gets ~95% of bid"
+    echo "    1.11 = platform keeps ~10%, publisher gets ~90% of bid"
+    echo "    1.00 = no adjustment (default)"
     echo ""
 }
 

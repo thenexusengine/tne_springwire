@@ -3,6 +3,7 @@ module github.com/thenexusengine/tne_springwire
 go 1.23.0
 
 require (
+	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/rs/zerolog v1.34.0
