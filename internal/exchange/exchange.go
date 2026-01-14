@@ -1404,35 +1404,63 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 	return finalResults
 }
 
-// cloneRequestWithFPD creates a deep copy of the request with bidder-specific FPD applied
-// and enforces USD currency for all bid requests
+// cloneRequestWithFPD creates a selective copy of the request with bidder-specific FPD applied
+// and enforces USD currency for all bid requests.
+// PERF: Only clones fields that are modified (Cur, Imp, Site/App/User if FPD applies).
+// Shared fields (Device, Regs, Source, etc.) are NOT copied - adapters must not mutate them.
 func (e *Exchange) cloneRequestWithFPD(req *openrtb.BidRequest, bidderCode string, bidderFPD fpd.BidderFPD) *openrtb.BidRequest {
-	// Always clone to ensure thread safety and allow currency normalization
-	clone := deepCloneRequest(req, e.config.CloneLimits)
+	// Shallow copy - shares pointers to Device, Regs, Source, etc.
+	clone := *req
 
-	// Enforce USD currency on all outgoing requests
-	// This ensures all bidders compete in the same currency without needing forex conversion
+	// Clone Cur slice (we overwrite it)
 	clone.Cur = []string{e.config.DefaultCurrency}
 
-	// Normalize bid floor currencies to USD
-	for i := range clone.Imp {
-		if clone.Imp[i].BidFloorCur == "" || clone.Imp[i].BidFloorCur != e.config.DefaultCurrency {
-			// If floor currency differs from USD and we had conversion, we'd convert here
-			// For now, we just set the currency - publishers should specify floors in USD
+	// Clone Imp slice - we modify BidFloorCur on each impression
+	// Only clone the slice and the structs we modify, share Banner/Video/etc. pointers
+	if len(req.Imp) > 0 {
+		limits := e.config.CloneLimits
+		impCount := len(req.Imp)
+		if impCount > limits.MaxImpressionsPerRequest {
+			impCount = limits.MaxImpressionsPerRequest
+		}
+		clone.Imp = make([]openrtb.Imp, impCount)
+		for i := 0; i < impCount; i++ {
+			clone.Imp[i] = req.Imp[i] // Shallow copy of Imp struct
 			clone.Imp[i].BidFloorCur = e.config.DefaultCurrency
 		}
 	}
 
-	// Apply FPD if available
+	// Check if FPD will be applied (requires cloning Site/App/User)
+	var fpdData *fpd.ResolvedFPD
 	if bidderFPD != nil {
-		if fpdData, ok := bidderFPD[bidderCode]; ok && fpdData != nil {
-			if e.fpdProcessor != nil {
-				e.fpdProcessor.ApplyFPDToRequest(clone, bidderCode, fpdData)
-			}
-		}
+		fpdData, _ = bidderFPD[bidderCode]
+	}
+	hasFPD := fpdData != nil && e.fpdProcessor != nil
+
+	// Clone Site only if FPD will modify it
+	if req.Site != nil && hasFPD && fpdData.Site != nil {
+		siteCopy := *req.Site
+		clone.Site = &siteCopy
 	}
 
-	return clone
+	// Clone App only if FPD will modify it
+	if req.App != nil && hasFPD && fpdData.App != nil {
+		appCopy := *req.App
+		clone.App = &appCopy
+	}
+
+	// Clone User only if FPD will modify it
+	if req.User != nil && hasFPD && fpdData.User != nil {
+		userCopy := *req.User
+		clone.User = &userCopy
+	}
+
+	// Apply FPD if available (now safe since we cloned the affected objects)
+	if hasFPD {
+		e.fpdProcessor.ApplyFPDToRequest(&clone, bidderCode, fpdData)
+	}
+
+	return &clone
 }
 
 // deepCloneRequest creates a deep copy of the BidRequest to avoid race conditions

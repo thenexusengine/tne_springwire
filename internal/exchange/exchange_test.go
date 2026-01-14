@@ -1820,3 +1820,184 @@ func BenchmarkRoundToCents(b *testing.B) {
 		}
 	}
 }
+
+// TestSelectiveClone_OriginalNotMutated verifies that cloneRequestWithFPD
+// does not mutate the original request (critical for concurrent bidder calls)
+func TestSelectiveClone_OriginalNotMutated(t *testing.T) {
+	registry := adapters.NewRegistry()
+	ex := New(registry, &Config{
+		DefaultTimeout:  100 * time.Millisecond,
+		DefaultCurrency: "USD",
+		IDREnabled:      false,
+		FPD: &fpd.Config{
+			Enabled:     true,
+			SiteEnabled: true,
+		},
+	})
+
+	// Create original request with specific values
+	original := &openrtb.BidRequest{
+		ID:  "test-clone",
+		Cur: []string{"EUR"},
+		Site: &openrtb.Site{
+			ID:   "site1",
+			Name: "Original Site",
+			Publisher: &openrtb.Publisher{
+				ID:   "pub1",
+				Name: "Original Publisher",
+			},
+		},
+		User: &openrtb.User{
+			ID: "user1",
+			Geo: &openrtb.Geo{
+				Country: "US",
+			},
+		},
+		Device: &openrtb.Device{
+			UA: "Original UA",
+			Geo: &openrtb.Geo{
+				Country: "US",
+			},
+		},
+		Imp: []openrtb.Imp{
+			{
+				ID:          "imp1",
+				BidFloor:    1.50,
+				BidFloorCur: "EUR",
+				Banner:      &openrtb.Banner{W: 300, H: 250},
+			},
+		},
+	}
+
+	// Store original values
+	origCur := original.Cur[0]
+	origSiteID := original.Site.ID
+	origImpFloorCur := original.Imp[0].BidFloorCur
+	origDeviceUA := original.Device.UA
+
+	// Clone with FPD (no FPD data, so Site/App/User won't be cloned)
+	clone := ex.cloneRequestWithFPD(original, "bidder1", nil)
+
+	// Verify clone has modified values
+	if clone.Cur[0] != "USD" {
+		t.Errorf("expected clone Cur = USD, got %s", clone.Cur[0])
+	}
+	if clone.Imp[0].BidFloorCur != "USD" {
+		t.Errorf("expected clone BidFloorCur = USD, got %s", clone.Imp[0].BidFloorCur)
+	}
+
+	// Verify original is NOT mutated
+	if original.Cur[0] != origCur {
+		t.Errorf("original Cur was mutated: expected %s, got %s", origCur, original.Cur[0])
+	}
+	if original.Site.ID != origSiteID {
+		t.Errorf("original Site.ID was mutated: expected %s, got %s", origSiteID, original.Site.ID)
+	}
+	if original.Imp[0].BidFloorCur != origImpFloorCur {
+		t.Errorf("original BidFloorCur was mutated: expected %s, got %s", origImpFloorCur, original.Imp[0].BidFloorCur)
+	}
+	if original.Device.UA != origDeviceUA {
+		t.Errorf("original Device.UA was mutated: expected %s, got %s", origDeviceUA, original.Device.UA)
+	}
+
+	// Verify shared pointers (Device, User without FPD) point to same objects
+	// This is the performance optimization - they share memory
+	if clone.Device != original.Device {
+		t.Log("Device was unnecessarily cloned (not a failure, but less optimal)")
+	}
+	if clone.User != original.User {
+		t.Log("User was unnecessarily cloned (not a failure, but less optimal)")
+	}
+}
+
+// TestSelectiveClone_WithFPD verifies that Site/App/User are cloned when FPD is applied
+func TestSelectiveClone_WithFPD(t *testing.T) {
+	registry := adapters.NewRegistry()
+	ex := New(registry, &Config{
+		DefaultTimeout:  100 * time.Millisecond,
+		DefaultCurrency: "USD",
+		IDREnabled:      false,
+		FPD: &fpd.Config{
+			Enabled:     true,
+			SiteEnabled: true,
+		},
+	})
+
+	original := &openrtb.BidRequest{
+		ID:  "test-fpd-clone",
+		Cur: []string{"EUR"},
+		Site: &openrtb.Site{
+			ID:   "site1",
+			Name: "Original Site",
+		},
+		Imp: []openrtb.Imp{
+			{ID: "imp1", Banner: &openrtb.Banner{W: 300, H: 250}},
+		},
+	}
+
+	// FPD with Site data - should trigger Site clone
+	fpdData := fpd.BidderFPD{
+		"bidder1": &fpd.ResolvedFPD{
+			Site: json.RawMessage(`{"segment":"premium"}`),
+		},
+	}
+
+	origSitePtr := original.Site
+
+	clone := ex.cloneRequestWithFPD(original, "bidder1", fpdData)
+
+	// Site should be cloned (different pointer) since FPD modifies it
+	if clone.Site == origSitePtr {
+		t.Error("Site should be cloned when FPD has Site data")
+	}
+
+	// Original Site should be unmodified
+	if original.Site.Ext != nil {
+		t.Error("original Site.Ext was mutated by FPD application")
+	}
+}
+
+// BenchmarkSelectiveClone benchmarks the new selective clone vs deep clone
+func BenchmarkSelectiveClone(b *testing.B) {
+	registry := adapters.NewRegistry()
+	ex := New(registry, &Config{
+		DefaultTimeout:  100 * time.Millisecond,
+		DefaultCurrency: "USD",
+		IDREnabled:      false,
+	})
+
+	req := &openrtb.BidRequest{
+		ID:  "bench-selective",
+		Cur: []string{"EUR"},
+		Site: &openrtb.Site{
+			ID:   "site1",
+			Name: "Test Site",
+			Publisher: &openrtb.Publisher{
+				ID:   "pub1",
+				Name: "Test Publisher",
+			},
+		},
+		User: &openrtb.User{
+			ID: "user1",
+			EIDs: []openrtb.EID{
+				{Source: "liveramp.com"},
+				{Source: "pubcid.org"},
+			},
+		},
+		Device: &openrtb.Device{
+			UA: "Mozilla/5.0",
+			Geo: &openrtb.Geo{
+				Country: "US",
+			},
+		},
+		Imp: []openrtb.Imp{
+			{ID: "imp1", BidFloorCur: "EUR", Banner: &openrtb.Banner{W: 300, H: 250}},
+			{ID: "imp2", BidFloorCur: "EUR", Video: &openrtb.Video{W: 640, H: 480}},
+		},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ex.cloneRequestWithFPD(req, "bidder1", nil)
+	}
+}
