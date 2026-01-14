@@ -267,6 +267,86 @@ Applied multiplier to floor price: imp=123 base_floor=0.50 multiplier=1.05 adjus
 Applied bid multiplier: bidder=rubicon original=0.60 adjusted=0.571 platform_cut=0.029
 ```
 
+### Monitoring Revenue with Prometheus
+
+Catalyst tracks all revenue and margin metrics in real-time using Prometheus. These metrics are available at `/metrics` endpoint.
+
+#### Available Metrics
+
+**Revenue Tracking:**
+```promql
+# Total revenue (what DSPs actually bid)
+pbs_revenue_total{publisher="totalsportspro", bidder="rubicon", media_type="banner"}
+
+# Publisher payout (after multiplier division)
+pbs_publisher_payout_total{publisher="totalsportspro", bidder="rubicon", media_type="banner"}
+
+# Platform margin (your cut)
+pbs_platform_margin_total{publisher="totalsportspro", bidder="rubicon", media_type="banner"}
+```
+
+**Margin Analysis:**
+```promql
+# Margin percentage distribution histogram
+pbs_margin_percentage_bucket{publisher="totalsportspro", le="5"}
+
+# Floor adjustment count
+pbs_floor_adjustments_total{publisher="totalsportspro"}
+```
+
+#### Example Queries
+
+**Total platform revenue (last 24h):**
+```promql
+sum(increase(pbs_platform_margin_total[24h]))
+```
+
+**Revenue by publisher:**
+```promql
+sum by (publisher) (increase(pbs_platform_margin_total[24h]))
+```
+
+**Revenue by bidder:**
+```promql
+sum by (bidder) (increase(pbs_platform_margin_total[24h]))
+```
+
+**Average margin percentage:**
+```promql
+avg(pbs_margin_percentage) by (publisher)
+```
+
+**Publisher payout vs platform revenue:**
+```promql
+# Publisher receives
+sum(increase(pbs_publisher_payout_total{publisher="totalsportspro"}[24h]))
+
+# Platform keeps
+sum(increase(pbs_platform_margin_total{publisher="totalsportspro"}[24h]))
+```
+
+**Floor adjustments per publisher:**
+```promql
+sum by (publisher) (increase(pbs_floor_adjustments_total[1h]))
+```
+
+#### Grafana Dashboard
+
+Create panels for:
+1. **Revenue Overview** - Total revenue, payout, margin (stacked area chart)
+2. **Margin %** - Average margin by publisher (gauge)
+3. **Top Bidders** - Revenue by bidder (bar chart)
+4. **Publisher Performance** - Revenue breakdown by publisher (pie chart)
+5. **Floor Adjustments** - Floor adjustment rate (time series)
+
+Example Grafana panel query:
+```promql
+# Revenue breakdown
+sum by (publisher, bidder) (
+  increase(pbs_platform_margin_total[1h])
+)
+```
+
 ## Management Script
 
 Use `/Users/andrewstreets/tne-catalyst/deployment/manage-publishers.sh` to manage publishers.
