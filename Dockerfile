@@ -2,7 +2,7 @@
 # Multi-stage build for optimized production image
 
 # Stage 1: Build
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make
