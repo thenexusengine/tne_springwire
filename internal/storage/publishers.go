@@ -116,7 +116,7 @@ func (s *PublisherStore) List(ctx context.Context) ([]*Publisher, error) {
 	}
 	defer rows.Close()
 
-	var publishers []*Publisher
+	publishers := make([]*Publisher, 0, 100)
 	for rows.Next() {
 		var p Publisher
 		var bidderParamsJSON []byte

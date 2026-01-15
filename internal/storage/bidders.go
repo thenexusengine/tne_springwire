@@ -119,7 +119,7 @@ func (s *BidderStore) ListActive(ctx context.Context) ([]*Bidder, error) {
 	}
 	defer rows.Close()
 
-	var bidders []*Bidder
+	bidders := make([]*Bidder, 0, 100)
 	for rows.Next() {
 		var b Bidder
 		var httpHeadersJSON []byte
@@ -203,7 +203,7 @@ func (s *BidderStore) GetForPublisher(ctx context.Context, publisherID string) (
 	}
 	defer rows.Close()
 
-	var bidders []*PublisherBidder
+	bidders := make([]*PublisherBidder, 0, 100)
 	for rows.Next() {
 		var pb PublisherBidder
 		var httpHeadersJSON []byte
@@ -273,7 +273,7 @@ func (s *BidderStore) List(ctx context.Context) ([]*Bidder, error) {
 	}
 	defer rows.Close()
 
-	var bidders []*Bidder
+	bidders := make([]*Bidder, 0, 10)
 	for rows.Next() {
 		var b Bidder
 		var httpHeadersJSON []byte
@@ -479,7 +479,7 @@ func (s *BidderStore) GetCapabilities(ctx context.Context, banner, video, native
 	}
 	defer rows.Close()
 
-	var bidders []*Bidder
+	bidders := make([]*Bidder, 0, 100)
 	for rows.Next() {
 		var b Bidder
 		var httpHeadersJSON []byte

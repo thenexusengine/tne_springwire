@@ -219,7 +219,7 @@ func (a *GenericAdapter) MakeBids(request *openrtb.BidRequest, responseData *ada
 	// Parse response
 	var bidResp openrtb.BidResponse
 	if err := json.Unmarshal(responseData.Body, &bidResp); err != nil {
-		return nil, []error{fmt.Errorf("failed to parse response from %s: %v", config.BidderCode, err)}
+		return nil, []error{fmt.Errorf("failed to parse response from %s: %w", config.BidderCode, err)}
 	}
 
 	// Build adapter response

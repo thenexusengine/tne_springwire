@@ -39,7 +39,7 @@ func (a *Adapter) MakeRequests(request *openrtb.BidRequest, extraInfo *adapters.
 
 		requestBody, err := json.Marshal(reqCopy)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to marshal request for imp %s: %v", imp.ID, err))
+			errors = append(errors, fmt.Errorf("failed to marshal request for imp %s: %w", imp.ID, err))
 			continue
 		}
 
