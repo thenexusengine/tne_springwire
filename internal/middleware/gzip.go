@@ -60,7 +60,7 @@ func NewGzip(config *GzipConfig) *Gzip {
 		writerPool: sync.Pool{
 			New: func() interface{} {
 				w, err := gzip.NewWriterLevel(io.Discard, level)
-				if err != nil { return }
+				if err != nil { return nil }
 				return w
 			},
 		},
