@@ -18,39 +18,39 @@ type Metrics struct {
 	RequestsInFlight prometheus.Gauge
 
 	// Auction metrics
-	AuctionsTotal       *prometheus.CounterVec
-	AuctionDuration     *prometheus.HistogramVec
-	BidsReceived        *prometheus.CounterVec
-	BidCPM              *prometheus.HistogramVec
-	BiddersSelected     *prometheus.HistogramVec
-	BiddersExcluded     *prometheus.HistogramVec
+	AuctionsTotal   *prometheus.CounterVec
+	AuctionDuration *prometheus.HistogramVec
+	BidsReceived    *prometheus.CounterVec
+	BidCPM          *prometheus.HistogramVec
+	BiddersSelected *prometheus.HistogramVec
+	BiddersExcluded *prometheus.HistogramVec
 
 	// Bidder metrics
-	BidderRequests     *prometheus.CounterVec
-	BidderLatency      *prometheus.HistogramVec
-	BidderErrors       *prometheus.CounterVec
-	BidderTimeouts     *prometheus.CounterVec
+	BidderRequests *prometheus.CounterVec
+	BidderLatency  *prometheus.HistogramVec
+	BidderErrors   *prometheus.CounterVec
+	BidderTimeouts *prometheus.CounterVec
 
 	// IDR metrics
-	IDRRequests        *prometheus.CounterVec
-	IDRLatency         *prometheus.HistogramVec
-	IDRCircuitState    *prometheus.GaugeVec
+	IDRRequests     *prometheus.CounterVec
+	IDRLatency      *prometheus.HistogramVec
+	IDRCircuitState *prometheus.GaugeVec
 
 	// Privacy metrics
-	PrivacyFiltered    *prometheus.CounterVec
-	ConsentSignals     *prometheus.CounterVec
+	PrivacyFiltered *prometheus.CounterVec
+	ConsentSignals  *prometheus.CounterVec
 
 	// System metrics
-	ActiveConnections  prometheus.Gauge
-	RateLimitRejected  prometheus.Counter
-	AuthFailures       prometheus.Counter
+	ActiveConnections prometheus.Gauge
+	RateLimitRejected prometheus.Counter
+	AuthFailures      prometheus.Counter
 
 	// Revenue/Margin metrics
-	RevenueTotal          *prometheus.CounterVec   // Total bid value (before multiplier)
-	PublisherPayoutTotal  *prometheus.CounterVec   // Amount paid to publishers (after multiplier)
-	PlatformMarginTotal   *prometheus.CounterVec   // Platform revenue (difference)
-	MarginPercentage      *prometheus.HistogramVec // Margin % distribution
-	FloorAdjustments      *prometheus.CounterVec   // Floor price adjustments
+	RevenueTotal         *prometheus.CounterVec   // Total bid value (before multiplier)
+	PublisherPayoutTotal *prometheus.CounterVec   // Amount paid to publishers (after multiplier)
+	PlatformMarginTotal  *prometheus.CounterVec   // Platform revenue (difference)
+	MarginPercentage     *prometheus.HistogramVec // Margin % distribution
+	FloorAdjustments     *prometheus.CounterVec   // Floor price adjustments
 }
 
 // NewMetrics creates and registers all Prometheus metrics

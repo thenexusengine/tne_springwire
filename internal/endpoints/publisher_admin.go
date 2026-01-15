@@ -51,11 +51,12 @@ const publishersHashKey = "tne_catalyst:publishers"
 
 // ServeHTTP handles publisher API requests
 // Routes:
-//   GET    /admin/publishers       - List all publishers
-//   GET    /admin/publishers/:id   - Get specific publisher
-//   POST   /admin/publishers       - Create publisher
-//   PUT    /admin/publishers/:id   - Update publisher
-//   DELETE /admin/publishers/:id   - Delete publisher
+//
+//	GET    /admin/publishers       - List all publishers
+//	GET    /admin/publishers/:id   - Get specific publisher
+//	POST   /admin/publishers       - Create publisher
+//	PUT    /admin/publishers/:id   - Update publisher
+//	DELETE /admin/publishers/:id   - Delete publisher
 func (h *PublisherAdminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check if Redis is available
 	if h.redisClient == nil {
@@ -290,8 +291,8 @@ func (h *PublisherAdminHandler) deletePublisher(w http.ResponseWriter, r *http.R
 
 	// Return success with deleted info
 	response := map[string]interface{}{
-		"success":        true,
-		"publisher_id":   publisherID,
+		"success":         true,
+		"publisher_id":    publisherID,
 		"deleted_domains": existing,
 	}
 

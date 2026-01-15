@@ -53,8 +53,8 @@ func TestSecurityMiddleware_AllHeaders(t *testing.T) {
 
 func TestSecurityMiddleware_Disabled(t *testing.T) {
 	security := NewSecurity(&SecurityConfig{
-		Enabled:         false,
-		XFrameOptions:   "DENY",
+		Enabled:             false,
+		XFrameOptions:       "DENY",
 		XContentTypeOptions: "nosniff",
 	})
 
@@ -158,8 +158,8 @@ func TestSecurityMiddleware_SetHSTS(t *testing.T) {
 
 func TestSecurityMiddleware_EmptyHeadersSkipped(t *testing.T) {
 	security := NewSecurity(&SecurityConfig{
-		Enabled:       true,
-		XFrameOptions: "", // Empty - should not be set
+		Enabled:             true,
+		XFrameOptions:       "", // Empty - should not be set
 		XContentTypeOptions: "nosniff",
 	})
 

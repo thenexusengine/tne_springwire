@@ -125,15 +125,15 @@ type IVTSignal struct {
 
 // IVTResult contains the validation result
 type IVTResult struct {
-	IsValid       bool        // Overall validity
-	Signals       []IVTSignal // All detected signals
-	Score         int         // IVT score (0-100, higher = more suspicious)
-	BlockReason   string      // Reason for blocking (if blocked)
-	ShouldBlock   bool        // Whether to block this request
-	PublisherID   string      // Publisher ID from request
-	Domain        string      // Domain from request
-	IPAddress     string      // Client IP
-	UserAgent     string      // User agent
+	IsValid       bool          // Overall validity
+	Signals       []IVTSignal   // All detected signals
+	Score         int           // IVT score (0-100, higher = more suspicious)
+	BlockReason   string        // Reason for blocking (if blocked)
+	ShouldBlock   bool          // Whether to block this request
+	PublisherID   string        // Publisher ID from request
+	Domain        string        // Domain from request
+	IPAddress     string        // Client IP
+	UserAgent     string        // User agent
 	DetectionTime time.Duration // Time taken to detect
 }
 
@@ -144,7 +144,7 @@ type IVTDetector struct {
 	metrics *IVTMetrics
 
 	// Compiled regex patterns (cached for performance)
-	uaPatterns []*regexp.Regexp
+	uaPatterns   []*regexp.Regexp
 	patternsOnce sync.Once
 }
 
@@ -153,20 +153,20 @@ type IVTMetrics struct {
 	mu sync.RWMutex
 
 	// Detection counts
-	TotalChecked      int64 // Total requests checked
-	TotalFlagged      int64 // Requests flagged as IVT
-	TotalBlocked      int64 // Requests blocked
+	TotalChecked int64 // Total requests checked
+	TotalFlagged int64 // Requests flagged as IVT
+	TotalBlocked int64 // Requests blocked
 
 	// Signal counts
-	DomainMismatches  int64 // Domain validation failures
-	SuspiciousUA      int64 // Suspicious user agents
-	InvalidReferer    int64 // Invalid/missing referers
-	GeoMismatches     int64 // Geographic restrictions
-	RateLimitHits     int64 // Rate limit exceeded
+	DomainMismatches int64 // Domain validation failures
+	SuspiciousUA     int64 // Suspicious user agents
+	InvalidReferer   int64 // Invalid/missing referers
+	GeoMismatches    int64 // Geographic restrictions
+	RateLimitHits    int64 // Rate limit exceeded
 
 	// Performance
-	LastCheckTime     time.Time
-	AvgCheckDuration  time.Duration
+	LastCheckTime    time.Time
+	AvgCheckDuration time.Duration
 }
 
 // NewIVTDetector creates a new IVT detector
@@ -232,7 +232,7 @@ func (d *IVTDetector) Validate(ctx context.Context, r *http.Request, publisherID
 	// Calculate final score and decision
 	result.Score = d.calculateScore(result.Signals)
 	result.ShouldBlock = cfg.BlockingEnabled && result.Score >= 70 // Block at 70+ score
-	result.IsValid = result.Score < 70 // Valid if score < 70
+	result.IsValid = result.Score < 70                             // Valid if score < 70
 
 	if result.ShouldBlock && len(result.Signals) > 0 {
 		result.BlockReason = result.Signals[0].Description // Use first signal as reason

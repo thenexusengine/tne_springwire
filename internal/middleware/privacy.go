@@ -39,16 +39,16 @@ var RequiredPurposes = []int{
 type PrivacyRegulation string
 
 const (
-	RegulationGDPR     PrivacyRegulation = "GDPR"      // EU/EEA - TCF v2 consent
-	RegulationCCPA     PrivacyRegulation = "CCPA"      // California - US Privacy String
-	RegulationVCDPA    PrivacyRegulation = "VCDPA"     // Virginia - US Privacy String
-	RegulationCPA      PrivacyRegulation = "CPA"       // Colorado - US Privacy String
-	RegulationCTDPA    PrivacyRegulation = "CTDPA"     // Connecticut - US Privacy String
-	RegulationUCPA     PrivacyRegulation = "UCPA"      // Utah - US Privacy String
-	RegulationLGPD     PrivacyRegulation = "LGPD"      // Brazil
-	RegulationPIPEDA   PrivacyRegulation = "PIPEDA"    // Canada
-	RegulationPDPA     PrivacyRegulation = "PDPA"      // Singapore
-	RegulationNone     PrivacyRegulation = "NONE"      // No applicable regulation
+	RegulationGDPR   PrivacyRegulation = "GDPR"   // EU/EEA - TCF v2 consent
+	RegulationCCPA   PrivacyRegulation = "CCPA"   // California - US Privacy String
+	RegulationVCDPA  PrivacyRegulation = "VCDPA"  // Virginia - US Privacy String
+	RegulationCPA    PrivacyRegulation = "CPA"    // Colorado - US Privacy String
+	RegulationCTDPA  PrivacyRegulation = "CTDPA"  // Connecticut - US Privacy String
+	RegulationUCPA   PrivacyRegulation = "UCPA"   // Utah - US Privacy String
+	RegulationLGPD   PrivacyRegulation = "LGPD"   // Brazil
+	RegulationPIPEDA PrivacyRegulation = "PIPEDA" // Canada
+	RegulationPDPA   PrivacyRegulation = "PDPA"   // Singapore
+	RegulationNone   PrivacyRegulation = "NONE"   // No applicable regulation
 )
 
 // GDPR Countries (EU/EEA + UK) - ISO 3166-1 alpha-3 codes
@@ -88,11 +88,11 @@ var gdprCountries = map[string]bool{
 
 // US States with privacy laws - Two-letter state codes
 var usPrivacyStates = map[string]PrivacyRegulation{
-	"CA": RegulationCCPA,   // California - CCPA
-	"VA": RegulationVCDPA,  // Virginia - VCDPA
-	"CO": RegulationCPA,    // Colorado - CPA
-	"CT": RegulationCTDPA,  // Connecticut - CTDPA
-	"UT": RegulationUCPA,   // Utah - UCPA
+	"CA": RegulationCCPA,  // California - CCPA
+	"VA": RegulationVCDPA, // Virginia - VCDPA
+	"CO": RegulationCPA,   // Colorado - CPA
+	"CT": RegulationCTDPA, // Connecticut - CTDPA
+	"UT": RegulationUCPA,  // Utah - UCPA
 }
 
 // PrivacyConfig configures the privacy middleware behavior
@@ -194,7 +194,7 @@ func (m *PrivacyMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":      "Privacy compliance violation",
 			"reason":     violation.Reason,
 			"regulation": violation.Regulation,

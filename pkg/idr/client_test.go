@@ -230,11 +230,11 @@ func TestGetFPDConfig(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		config := map[string]interface{}{
 			"fpd": map[string]interface{}{
-				"enabled":       true,
-				"site_enabled":  true,
-				"user_enabled":  true,
-				"eids_enabled":  true,
-				"eid_sources":   "liveramp.com,id5-sync.com",
+				"enabled":      true,
+				"site_enabled": true,
+				"user_enabled": true,
+				"eids_enabled": true,
+				"eid_sources":  "liveramp.com,id5-sync.com",
 			},
 		}
 		json.NewEncoder(w).Encode(config)

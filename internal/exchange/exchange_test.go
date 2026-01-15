@@ -922,29 +922,29 @@ func TestValidateRequest(t *testing.T) {
 			errContains: "30000",
 		},
 		{
-			name:        "valid request with site",
-			request:     &openrtb.BidRequest{ID: "req1", Site: testSite(), Imp: []openrtb.Imp{{ID: "imp1"}}},
-			wantErr:     false,
+			name:    "valid request with site",
+			request: &openrtb.BidRequest{ID: "req1", Site: testSite(), Imp: []openrtb.Imp{{ID: "imp1"}}},
+			wantErr: false,
 		},
 		{
-			name:        "valid request with app",
-			request:     &openrtb.BidRequest{ID: "req1", App: &openrtb.App{ID: "app1"}, Imp: []openrtb.Imp{{ID: "imp1"}}},
-			wantErr:     false,
+			name:    "valid request with app",
+			request: &openrtb.BidRequest{ID: "req1", App: &openrtb.App{ID: "app1"}, Imp: []openrtb.Imp{{ID: "imp1"}}},
+			wantErr: false,
 		},
 		{
-			name:        "valid request with tmax at lower bound",
-			request:     &openrtb.BidRequest{ID: "req1", Site: testSite(), TMax: 10, Imp: []openrtb.Imp{{ID: "imp1"}}},
-			wantErr:     false,
+			name:    "valid request with tmax at lower bound",
+			request: &openrtb.BidRequest{ID: "req1", Site: testSite(), TMax: 10, Imp: []openrtb.Imp{{ID: "imp1"}}},
+			wantErr: false,
 		},
 		{
-			name:        "valid request with tmax at upper bound",
-			request:     &openrtb.BidRequest{ID: "req1", Site: testSite(), TMax: 30000, Imp: []openrtb.Imp{{ID: "imp1"}}},
-			wantErr:     false,
+			name:    "valid request with tmax at upper bound",
+			request: &openrtb.BidRequest{ID: "req1", Site: testSite(), TMax: 30000, Imp: []openrtb.Imp{{ID: "imp1"}}},
+			wantErr: false,
 		},
 		{
-			name:        "valid request with zero tmax (no limit)",
-			request:     &openrtb.BidRequest{ID: "req1", Site: testSite(), TMax: 0, Imp: []openrtb.Imp{{ID: "imp1"}}},
-			wantErr:     false,
+			name:    "valid request with zero tmax (no limit)",
+			request: &openrtb.BidRequest{ID: "req1", Site: testSite(), TMax: 0, Imp: []openrtb.Imp{{ID: "imp1"}}},
+			wantErr: false,
 		},
 		{
 			name: "valid request with multiple unique impressions",
@@ -1668,7 +1668,7 @@ func TestSortBidsByPrice_NilBids(t *testing.T) {
 	// Test with nil bids in the slice - should handle gracefully
 	bids := []ValidatedBid{
 		{Bid: &adapters.TypedBid{Bid: &openrtb.Bid{ID: "b1", Price: 1.00}}, BidderCode: "bidder1"},
-		{Bid: nil, BidderCode: "bidder2"}, // nil TypedBid
+		{Bid: nil, BidderCode: "bidder2"},                          // nil TypedBid
 		{Bid: &adapters.TypedBid{Bid: nil}, BidderCode: "bidder3"}, // nil Bid
 		{Bid: &adapters.TypedBid{Bid: &openrtb.Bid{ID: "b4", Price: 5.00}}, BidderCode: "bidder4"},
 	}

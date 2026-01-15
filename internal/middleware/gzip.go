@@ -59,7 +59,8 @@ func NewGzip(config *GzipConfig) *Gzip {
 		config: config,
 		writerPool: sync.Pool{
 			New: func() interface{} {
-				w, _ := gzip.NewWriterLevel(io.Discard, level)
+				w, err := gzip.NewWriterLevel(io.Discard, level)
+				if err != nil { return }
 				return w
 			},
 		},
@@ -202,7 +203,7 @@ func (g *Gzip) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Get a gzip writer from pool
+		// Get a gzip writer from pool // Pool returns gzip.Writer, type guaranteed
 		gzipWriter := g.writerPool.Get().(*gzip.Writer)
 
 		grw := &gzipResponseWriter{

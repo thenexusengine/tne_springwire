@@ -5,29 +5,29 @@ import "encoding/json"
 
 // Config holds FPD processing configuration
 type Config struct {
-	Enabled              bool     `json:"enabled" yaml:"enabled"`
-	SiteEnabled          bool     `json:"site_enabled" yaml:"site_enabled"`
-	UserEnabled          bool     `json:"user_enabled" yaml:"user_enabled"`
-	ImpEnabled           bool     `json:"imp_enabled" yaml:"imp_enabled"`
-	GlobalEnabled        bool     `json:"global_enabled" yaml:"global_enabled"`
-	BidderConfigEnabled  bool     `json:"bidderconfig_enabled" yaml:"bidderconfig_enabled"`
-	ContentEnabled       bool     `json:"content_enabled" yaml:"content_enabled"`
-	EIDsEnabled          bool     `json:"eids_enabled" yaml:"eids_enabled"`
-	EIDSources           []string `json:"eid_sources" yaml:"eid_sources"`
+	Enabled             bool     `json:"enabled" yaml:"enabled"`
+	SiteEnabled         bool     `json:"site_enabled" yaml:"site_enabled"`
+	UserEnabled         bool     `json:"user_enabled" yaml:"user_enabled"`
+	ImpEnabled          bool     `json:"imp_enabled" yaml:"imp_enabled"`
+	GlobalEnabled       bool     `json:"global_enabled" yaml:"global_enabled"`
+	BidderConfigEnabled bool     `json:"bidderconfig_enabled" yaml:"bidderconfig_enabled"`
+	ContentEnabled      bool     `json:"content_enabled" yaml:"content_enabled"`
+	EIDsEnabled         bool     `json:"eids_enabled" yaml:"eids_enabled"`
+	EIDSources          []string `json:"eid_sources" yaml:"eid_sources"`
 }
 
 // DefaultConfig returns the default FPD configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Enabled:              true,
-		SiteEnabled:          true,
-		UserEnabled:          true,
-		ImpEnabled:           true,
-		GlobalEnabled:        false,
-		BidderConfigEnabled:  false,
-		ContentEnabled:       true,
-		EIDsEnabled:          true,
-		EIDSources:           []string{"liveramp.com", "uidapi.com", "id5-sync.com", "criteo.com"},
+		Enabled:             true,
+		SiteEnabled:         true,
+		UserEnabled:         true,
+		ImpEnabled:          true,
+		GlobalEnabled:       false,
+		BidderConfigEnabled: false,
+		ContentEnabled:      true,
+		EIDsEnabled:         true,
+		EIDSources:          []string{"liveramp.com", "uidapi.com", "id5-sync.com", "criteo.com"},
 	}
 }
 
@@ -52,8 +52,8 @@ type PrebidData struct {
 
 // BidderConfig represents an entry in ext.prebid.bidderconfig
 type BidderConfig struct {
-	Bidders []string     `json:"bidders"`
-	Config  *FPDConfig   `json:"config,omitempty"`
+	Bidders []string   `json:"bidders"`
+	Config  *FPDConfig `json:"config,omitempty"`
 }
 
 // FPDConfig represents the config object within bidderconfig
@@ -70,38 +70,38 @@ type ORTB2Config struct {
 
 // SiteFPD represents site-level first party data
 type SiteFPD struct {
-	Name       string          `json:"name,omitempty"`
-	Domain     string          `json:"domain,omitempty"`
-	Cat        []string        `json:"cat,omitempty"`
-	SectionCat []string        `json:"sectioncat,omitempty"`
-	PageCat    []string        `json:"pagecat,omitempty"`
-	Page       string          `json:"page,omitempty"`
-	Ref        string          `json:"ref,omitempty"`
-	Search     string          `json:"search,omitempty"`
-	Keywords   string          `json:"keywords,omitempty"`
-	Content    *ContentFPD     `json:"content,omitempty"`
-	Ext        *ExtData        `json:"ext,omitempty"`
+	Name       string      `json:"name,omitempty"`
+	Domain     string      `json:"domain,omitempty"`
+	Cat        []string    `json:"cat,omitempty"`
+	SectionCat []string    `json:"sectioncat,omitempty"`
+	PageCat    []string    `json:"pagecat,omitempty"`
+	Page       string      `json:"page,omitempty"`
+	Ref        string      `json:"ref,omitempty"`
+	Search     string      `json:"search,omitempty"`
+	Keywords   string      `json:"keywords,omitempty"`
+	Content    *ContentFPD `json:"content,omitempty"`
+	Ext        *ExtData    `json:"ext,omitempty"`
 }
 
 // AppFPD represents app-level first party data
 type AppFPD struct {
-	Name     string          `json:"name,omitempty"`
-	Bundle   string          `json:"bundle,omitempty"`
-	Domain   string          `json:"domain,omitempty"`
-	StoreURL string          `json:"storeurl,omitempty"`
-	Cat      []string        `json:"cat,omitempty"`
-	Keywords string          `json:"keywords,omitempty"`
-	Content  *ContentFPD     `json:"content,omitempty"`
-	Ext      *ExtData        `json:"ext,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Bundle   string      `json:"bundle,omitempty"`
+	Domain   string      `json:"domain,omitempty"`
+	StoreURL string      `json:"storeurl,omitempty"`
+	Cat      []string    `json:"cat,omitempty"`
+	Keywords string      `json:"keywords,omitempty"`
+	Content  *ContentFPD `json:"content,omitempty"`
+	Ext      *ExtData    `json:"ext,omitempty"`
 }
 
 // UserFPD represents user-level first party data
 type UserFPD struct {
-	YOB      int             `json:"yob,omitempty"`
-	Gender   string          `json:"gender,omitempty"`
-	Keywords string          `json:"keywords,omitempty"`
-	Data     []DataSegment   `json:"data,omitempty"`
-	Ext      *ExtData        `json:"ext,omitempty"`
+	YOB      int           `json:"yob,omitempty"`
+	Gender   string        `json:"gender,omitempty"`
+	Keywords string        `json:"keywords,omitempty"`
+	Data     []DataSegment `json:"data,omitempty"`
+	Ext      *ExtData      `json:"ext,omitempty"`
 }
 
 // ContentFPD represents content first party data

@@ -27,15 +27,15 @@ type MetricsRecorder interface {
 
 // Exchange orchestrates the auction process
 type Exchange struct {
-	registry         *adapters.Registry
-	dynamicRegistry  *ortb.DynamicRegistry
-	httpClient       adapters.HTTPClient
-	idrClient        *idr.Client
-	eventRecorder    *idr.EventRecorder
-	config           *Config
-	fpdProcessor     *fpd.Processor
-	eidFilter        *fpd.EIDFilter
-	metrics          MetricsRecorder
+	registry        *adapters.Registry
+	dynamicRegistry *ortb.DynamicRegistry
+	httpClient      adapters.HTTPClient
+	idrClient       *idr.Client
+	eventRecorder   *idr.EventRecorder
+	config          *Config
+	fpdProcessor    *fpd.Processor
+	eidFilter       *fpd.EIDFilter
+	metrics         MetricsRecorder
 
 	// configMu protects dynamicRegistry, fpdProcessor, eidFilter, and config.FPD
 	// for safe concurrent access during runtime config updates
@@ -64,8 +64,8 @@ const (
 
 // P1-4: Timeout bounds for dynamic adapter validation
 const (
-	minBidderTimeout = 10 * time.Millisecond  // Minimum reasonable timeout
-	maxBidderTimeout = 5 * time.Second        // Maximum to prevent resource exhaustion
+	minBidderTimeout = 10 * time.Millisecond // Minimum reasonable timeout
+	maxBidderTimeout = 5 * time.Second       // Maximum to prevent resource exhaustion
 )
 
 // maxAllowedTMax caps TMax at a reasonable maximum to prevent resource exhaustion (10 seconds)
@@ -296,14 +296,14 @@ type BidderResult struct {
 
 // DebugInfo contains debug information
 type DebugInfo struct {
-	RequestTime       time.Time
-	TotalLatency      time.Duration
-	IDRLatency        time.Duration
-	BidderLatencies   map[string]time.Duration
-	SelectedBidders   []string
-	ExcludedBidders   []string
-	Errors            map[string][]string
-	errorsMu          sync.Mutex // Protects concurrent access to Errors map
+	RequestTime     time.Time
+	TotalLatency    time.Duration
+	IDRLatency      time.Duration
+	BidderLatencies map[string]time.Duration
+	SelectedBidders []string
+	ExcludedBidders []string
+	Errors          map[string][]string
+	errorsMu        sync.Mutex // Protects concurrent access to Errors map
 }
 
 // AddError safely adds errors to the Errors map with mutex protection
@@ -406,9 +406,9 @@ func ValidateRequest(req *openrtb.BidRequest) *RequestValidationError {
 
 // BidValidationError represents a bid validation failure
 type BidValidationError struct {
-	BidID   string
-	ImpID   string
-	Reason  string
+	BidID      string
+	ImpID      string
+	Reason     string
 	BidderCode string
 }
 
@@ -1398,7 +1398,7 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 	// P0-1: Convert sync.Map to regular map for return
 	finalResults := make(map[string]*BidderResult)
 	results.Range(func(key, value interface{}) bool {
-		finalResults[key.(string)] = value.(*BidderResult)
+		if k, ok := key.(string); ok { if v, ok := value.(*BidderResult); ok { finalResults[k] = v } }
 		return true
 	})
 	return finalResults
@@ -1457,7 +1457,7 @@ func (e *Exchange) cloneRequestWithFPD(req *openrtb.BidRequest, bidderCode strin
 
 	// Apply FPD if available (now safe since we cloned the affected objects)
 	if hasFPD {
-		e.fpdProcessor.ApplyFPDToRequest(&clone, bidderCode, fpdData)
+		_ = e.fpdProcessor.ApplyFPDToRequest(&clone, bidderCode, fpdData)
 	}
 
 	return &clone
@@ -1815,9 +1815,9 @@ func (e *Exchange) buildBidExtension(vb ValidatedBid) *openrtb.BidExt {
 
 	// Build targeting keys that Prebid.js expects
 	targeting := map[string]string{
-		"hb_pb":     priceBucket,
-		"hb_bidder": displayBidderCode,
-		"hb_size":   fmt.Sprintf("%dx%d", bid.W, bid.H),
+		"hb_pb":                          priceBucket,
+		"hb_bidder":                      displayBidderCode,
+		"hb_size":                        fmt.Sprintf("%dx%d", bid.W, bid.H),
 		"hb_pb_" + displayBidderCode:     priceBucket,
 		"hb_bidder_" + displayBidderCode: displayBidderCode,
 		"hb_size_" + displayBidderCode:   fmt.Sprintf("%dx%d", bid.W, bid.H),

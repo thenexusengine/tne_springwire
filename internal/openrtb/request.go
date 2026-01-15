@@ -12,16 +12,16 @@ type BidRequest struct {
 	Device *Device         `json:"device,omitempty"`
 	User   *User           `json:"user,omitempty"`
 	Test   int             `json:"test,omitempty"`
-	AT     int             `json:"at,omitempty"`     // Auction type: 1=first price, 2=second price
-	TMax   int             `json:"tmax,omitempty"`   // Max time in ms for bid response
-	WSeat  []string        `json:"wseat,omitempty"`  // Allowed buyer seats
-	BSeat  []string        `json:"bseat,omitempty"`  // Blocked buyer seats
+	AT     int             `json:"at,omitempty"`    // Auction type: 1=first price, 2=second price
+	TMax   int             `json:"tmax,omitempty"`  // Max time in ms for bid response
+	WSeat  []string        `json:"wseat,omitempty"` // Allowed buyer seats
+	BSeat  []string        `json:"bseat,omitempty"` // Blocked buyer seats
 	AllImp int             `json:"allimps,omitempty"`
-	Cur    []string        `json:"cur,omitempty"`    // Allowed currencies
-	WLang  []string        `json:"wlang,omitempty"`  // Allowed languages
-	BCat   []string        `json:"bcat,omitempty"`   // Blocked categories
-	BAdv   []string        `json:"badv,omitempty"`   // Blocked advertisers
-	BApp   []string        `json:"bapp,omitempty"`   // Blocked apps
+	Cur    []string        `json:"cur,omitempty"`   // Allowed currencies
+	WLang  []string        `json:"wlang,omitempty"` // Allowed languages
+	BCat   []string        `json:"bcat,omitempty"`  // Blocked categories
+	BAdv   []string        `json:"badv,omitempty"`  // Blocked advertisers
+	BApp   []string        `json:"bapp,omitempty"`  // Blocked apps
 	Source *Source         `json:"source,omitempty"`
 	Regs   *Regs           `json:"regs,omitempty"`
 	Ext    json.RawMessage `json:"ext,omitempty"`
@@ -38,7 +38,7 @@ type Imp struct {
 	PMP               *PMP            `json:"pmp,omitempty"`
 	DisplayManager    string          `json:"displaymanager,omitempty"`
 	DisplayManagerVer string          `json:"displaymanagerver,omitempty"`
-	Instl             int             `json:"instl,omitempty"`      // Interstitial flag
+	Instl             int             `json:"instl,omitempty"` // Interstitial flag
 	TagID             string          `json:"tagid,omitempty"`
 	BidFloor          float64         `json:"bidfloor,omitempty"`
 	BidFloorCur       string          `json:"bidfloorcur,omitempty"`
@@ -58,9 +58,9 @@ type Banner struct {
 	HMax     int             `json:"hmax,omitempty"`
 	WMin     int             `json:"wmin,omitempty"`
 	HMin     int             `json:"hmin,omitempty"`
-	BType    []int           `json:"btype,omitempty"`  // Blocked banner types
-	BAttr    []int           `json:"battr,omitempty"`  // Blocked creative attributes
-	Pos      int             `json:"pos,omitempty"`    // Ad position
+	BType    []int           `json:"btype,omitempty"` // Blocked banner types
+	BAttr    []int           `json:"battr,omitempty"` // Blocked creative attributes
+	Pos      int             `json:"pos,omitempty"`   // Ad position
 	Mimes    []string        `json:"mimes,omitempty"`
 	TopFrame int             `json:"topframe,omitempty"`
 	ExpDir   []int           `json:"expdir,omitempty"` // Expandable directions
@@ -364,10 +364,10 @@ type Source struct {
 
 // SupplyChain represents supply chain
 type SupplyChain struct {
-	Complete int                `json:"complete,omitempty"`
-	Nodes    []SupplyChainNode  `json:"nodes,omitempty"`
-	Ver      string             `json:"ver,omitempty"`
-	Ext      json.RawMessage    `json:"ext,omitempty"`
+	Complete int               `json:"complete,omitempty"`
+	Nodes    []SupplyChainNode `json:"nodes,omitempty"`
+	Ver      string            `json:"ver,omitempty"`
+	Ext      json.RawMessage   `json:"ext,omitempty"`
 }
 
 // SupplyChainNode represents a node in supply chain
@@ -383,10 +383,10 @@ type SupplyChainNode struct {
 
 // Regs represents regulations
 type Regs struct {
-	COPPA int             `json:"coppa,omitempty"`
-	GDPR  *int            `json:"gdpr,omitempty"`
-	USPrivacy string      `json:"us_privacy,omitempty"`
-	GPP   string          `json:"gpp,omitempty"`
-	GPPSID []int          `json:"gpp_sid,omitempty"`
-	Ext   json.RawMessage `json:"ext,omitempty"`
+	COPPA     int             `json:"coppa,omitempty"`
+	GDPR      *int            `json:"gdpr,omitempty"`
+	USPrivacy string          `json:"us_privacy,omitempty"`
+	GPP       string          `json:"gpp,omitempty"`
+	GPPSID    []int           `json:"gpp_sid,omitempty"`
+	Ext       json.RawMessage `json:"ext,omitempty"`
 }

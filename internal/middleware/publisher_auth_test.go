@@ -300,7 +300,7 @@ func TestPublisherAuth_DomainValidation_Allowed(t *testing.T) {
 func TestPublisherAuth_AppPublisher(t *testing.T) {
 	config := &PublisherAuthConfig{
 		Enabled:           true,
-		AllowUnregistered: true, // Allow since no DB configured
+		AllowUnregistered: true,                             // Allow since no DB configured
 		RegisteredPubs:    map[string]string{"app_pub": ""}, // Deprecated but kept for backward compat
 		ValidateDomain:    false,
 	}
@@ -797,7 +797,7 @@ func TestMiddleware_InvalidJSON(t *testing.T) {
 	}))
 
 	// Invalid JSON should pass through to main handler
-	req := httptest.NewRequest(http.MethodPost, "/openrtb2/auction", 
+	req := httptest.NewRequest(http.MethodPost, "/openrtb2/auction",
 		bytes.NewReader([]byte("invalid json{")))
 	rr := httptest.NewRecorder()
 

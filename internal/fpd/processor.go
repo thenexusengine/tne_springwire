@@ -26,7 +26,11 @@ func NewProcessor(config *Config) *Processor {
 // getConfig returns the current configuration atomically
 // P0-2: Readers get a consistent snapshot even if UpdateConfig is called concurrently
 func (p *Processor) getConfig() *Config {
-	return p.config.Load().(*Config)
+	cfg, ok := p.config.Load().(*Config)
+	if !ok || cfg == nil {
+		return &Config{}
+	}
+	return cfg
 }
 
 // ProcessRequest processes FPD in a bid request and returns bidder-specific FPD
@@ -157,16 +161,19 @@ func (p *Processor) applyBidderConfig(base *ResolvedFPD, bidder string, configs 
 			ortb2 := config.Config.ORTB2
 
 			if ortb2.Site != nil {
-				siteJSON, _ := json.Marshal(ortb2.Site)
-				result.Site = p.mergeJSON(result.Site, siteJSON)
+				if siteJSON, err := json.Marshal(ortb2.Site); err == nil {
+					result.Site = p.mergeJSON(result.Site, siteJSON)
+				}
 			}
 			if ortb2.App != nil {
-				appJSON, _ := json.Marshal(ortb2.App)
-				result.App = p.mergeJSON(result.App, appJSON)
+				if appJSON, err := json.Marshal(ortb2.App); err == nil {
+					result.App = p.mergeJSON(result.App, appJSON)
+				}
 			}
 			if ortb2.User != nil {
-				userJSON, _ := json.Marshal(ortb2.User)
-				result.User = p.mergeJSON(result.User, userJSON)
+				if userJSON, err := json.Marshal(ortb2.User); err == nil {
+					result.User = p.mergeJSON(result.User, userJSON)
+				}
 			}
 		}
 	}
@@ -227,7 +234,10 @@ func (p *Processor) mergeJSON(base, overlay json.RawMessage) json.RawMessage {
 		baseMap[k] = v
 	}
 
-	result, _ := json.Marshal(baseMap)
+	result, err := json.Marshal(baseMap)
+	if err != nil {
+		return nil
+	}
 	return result
 }
 
@@ -290,14 +300,21 @@ func (p *Processor) setExtData(ext json.RawMessage, data json.RawMessage) json.R
 
 	extObj["data"] = data
 
-	result, _ := json.Marshal(extObj)
+	result, err := json.Marshal(extObj)
+	if err != nil {
+		return nil
+	}
 	return result
 }
 
 // GetConfig returns the processor's configuration
 // P0-2: Uses atomic load for lock-free, race-safe access
 func (p *Processor) GetConfig() *Config {
-	return p.config.Load().(*Config)
+	cfg, ok := p.config.Load().(*Config)
+	if !ok || cfg == nil {
+		return &Config{}
+	}
+	return cfg
 }
 
 // UpdateConfig updates the processor's configuration

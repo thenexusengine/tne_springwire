@@ -34,8 +34,8 @@ type SyncerConfig struct {
 
 // Syncer handles user sync URL generation for a bidder
 type Syncer struct {
-	config   SyncerConfig
-	hostURL  string // The PBS host URL for callbacks
+	config  SyncerConfig
+	hostURL string // The PBS host URL for callbacks
 }
 
 // NewSyncer creates a new syncer for a bidder
@@ -48,9 +48,9 @@ func NewSyncer(config SyncerConfig, hostURL string) *Syncer {
 
 // SyncInfo contains the sync URL and type for a bidder
 type SyncInfo struct {
-	URL     string   `json:"url"`
-	Type    SyncType `json:"type"`
-	Bidder  string   `json:"bidder"`
+	URL    string   `json:"url"`
+	Type   SyncType `json:"type"`
+	Bidder string   `json:"bidder"`
 }
 
 // GetSync returns the sync info for this bidder

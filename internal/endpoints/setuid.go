@@ -110,7 +110,7 @@ func (h *SetUIDHandler) respondWithPixel(w http.ResponseWriter) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	w.WriteHeader(http.StatusOK)
-	w.Write(pixel)
+	_, _ = w.Write(pixel) // Error writing response cannot be handled
 }
 
 // AddBidder adds a valid bidder code
@@ -147,7 +147,7 @@ func (h *OptOutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Return success page
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`<!DOCTYPE html>
+	_, _ = w.Write([]byte(`<!DOCTYPE html>
 <html>
 <head><title>Opted Out</title></head>
 <body>
