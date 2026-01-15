@@ -531,13 +531,16 @@ func TestClient_MultipleOperations(t *testing.T) {
 	ctx := context.Background()
 
 	// Set multiple hash fields
-	if err := client.HSet(ctx, "user:1", "name", "Alice"); err != nil {
+	err = client.HSet(ctx, "user:1", "name", "Alice")
+	if err != nil {
 		t.Fatalf("HSet name failed: %v", err)
 	}
-	if err := client.HSet(ctx, "user:1", "email", "alice@example.com"); err != nil {
+	err = client.HSet(ctx, "user:1", "email", "alice@example.com")
+	if err != nil {
 		t.Fatalf("HSet email failed: %v", err)
 	}
-	if err := client.HSet(ctx, "user:1", "age", 30); err != nil {
+	err = client.HSet(ctx, "user:1", "age", 30)
+	if err != nil {
 		t.Fatalf("HSet age failed: %v", err)
 	}
 
@@ -571,7 +574,8 @@ func TestClient_MultipleOperations(t *testing.T) {
 	}
 
 	// Delete a field
-	if err := client.HDel(ctx, "user:1", "email"); err != nil {
+	err = client.HDel(ctx, "user:1", "email")
+	if err != nil {
 		t.Fatalf("HDel failed: %v", err)
 	}
 
