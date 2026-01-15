@@ -3,6 +3,7 @@ package spotx
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
@@ -58,4 +59,8 @@ func Info() adapters.BidderInfo {
 	}
 }
 
-func init() { adapters.RegisterAdapter("spotx", New(""), Info()) }
+func init() {
+	if err := adapters.RegisterAdapter("spotx", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register spotx adapter: %v", err))
+	}
+}

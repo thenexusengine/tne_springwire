@@ -479,7 +479,8 @@ func TestValidateBidRequest_MissingID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	valErr, ok := err.(*ValidationError)
+	var valErr *ValidationError
+	ok := errors.As(err, &valErr)
 	if !ok {
 		t.Fatalf("expected ValidationError, got %T", err)
 	}
@@ -497,7 +498,8 @@ func TestValidateBidRequest_NoImpressions(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	valErr := err.(*ValidationError)
+	var valErr *ValidationError
+	_ = errors.As(err, &valErr)
 	if valErr.Field != "imp" {
 		t.Errorf("expected field 'imp', got '%s'", valErr.Field)
 	}
@@ -512,7 +514,8 @@ func TestValidateBidRequest_ImpressionMissingID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	valErr := err.(*ValidationError)
+	var valErr *ValidationError
+	_ = errors.As(err, &valErr)
 	if valErr.Field != "imp[].id" {
 		t.Errorf("expected field 'imp[].id', got '%s'", valErr.Field)
 	}
@@ -530,7 +533,8 @@ func TestValidateBidRequest_ImpressionNoMediaType(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	valErr := err.(*ValidationError)
+	var valErr *ValidationError
+	_ = errors.As(err, &valErr)
 	if !strings.Contains(valErr.Field, "banner|video|native|audio") {
 		t.Errorf("expected media type field, got '%s'", valErr.Field)
 	}
@@ -563,7 +567,8 @@ func TestValidateBidRequest_SecondImpressionInvalid(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	valErr := err.(*ValidationError)
+	var valErr *ValidationError
+	_ = errors.As(err, &valErr)
 	if valErr.Index != 1 {
 		t.Errorf("expected index 1, got %d", valErr.Index)
 	}

@@ -8,8 +8,8 @@ import (
 
 // Circuit breaker states
 const (
-	StateClosed   = "closed"   // Normal operation
-	StateOpen     = "open"     // Failing, rejecting requests
+	StateClosed   = "closed"    // Normal operation
+	StateOpen     = "open"      // Failing, rejecting requests
 	StateHalfOpen = "half-open" // Testing if service recovered
 )
 
@@ -18,11 +18,11 @@ var ErrCircuitOpen = errors.New("circuit breaker is open")
 
 // CircuitBreakerConfig holds circuit breaker configuration
 type CircuitBreakerConfig struct {
-	FailureThreshold   int           // Failures before opening circuit
-	SuccessThreshold   int           // Successes to close circuit from half-open
-	Timeout            time.Duration // Time to wait before half-open
-	MaxConcurrent      int           // Max concurrent requests (0 = unlimited)
-	OnStateChange      func(from, to string)
+	FailureThreshold int           // Failures before opening circuit
+	SuccessThreshold int           // Successes to close circuit from half-open
+	Timeout          time.Duration // Time to wait before half-open
+	MaxConcurrent    int           // Max concurrent requests (0 = unlimited)
+	OnStateChange    func(from, to string)
 }
 
 // DefaultCircuitBreakerConfig returns sensible defaults
@@ -47,10 +47,10 @@ type CircuitBreaker struct {
 	concurrent      int
 
 	// Metrics
-	totalRequests   int64
-	totalFailures   int64
-	totalSuccesses  int64
-	totalRejected   int64
+	totalRequests  int64
+	totalFailures  int64
+	totalSuccesses int64
+	totalRejected  int64
 
 	// Callback lifecycle management
 	callbackWg sync.WaitGroup

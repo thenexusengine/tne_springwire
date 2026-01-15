@@ -172,8 +172,9 @@ func (c *Cookie) ToHTTPCookie(domain string) (*http.Cookie, error) {
 	if len(encoded) > MaxCookieSize {
 		// Trim oldest UIDs to fit
 		c.trimToFit()
-		data, _ = json.Marshal(c)
-		encoded = base64.URLEncoding.EncodeToString(data)
+		if data, err := json.Marshal(c); err == nil {
+			encoded = base64.URLEncoding.EncodeToString(data)
+		}
 	}
 
 	return &http.Cookie{
@@ -193,7 +194,10 @@ func (c *Cookie) ToHTTPCookie(domain string) (*http.Cookie, error) {
 func (c *Cookie) trimToFit() {
 	// Simple approach: remove UIDs with earliest expiry until we fit
 	for len(c.UIDs) > 0 {
-		data, _ := json.Marshal(c)
+		data, err := json.Marshal(c)
+		if err != nil {
+			break // Can't check size if marshal fails
+		}
 		encoded := base64.URLEncoding.EncodeToString(data)
 		if len(encoded) <= MaxCookieSize {
 			break

@@ -130,7 +130,7 @@ func TestProcessorExtractsImpData(t *testing.T) {
 	if bidderFPD == nil {
 		t.Fatal("expected FPD for bidder1")
 	}
-	if bidderFPD.Imp == nil || len(bidderFPD.Imp) == 0 {
+	if len(bidderFPD.Imp) == 0 {
 		t.Error("expected impression FPD data")
 	}
 	if _, ok := bidderFPD.Imp["imp1"]; !ok {

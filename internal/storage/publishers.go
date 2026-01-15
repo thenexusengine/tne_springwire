@@ -116,7 +116,7 @@ func (s *PublisherStore) List(ctx context.Context) ([]*Publisher, error) {
 	}
 	defer rows.Close()
 
-	var publishers []*Publisher
+	publishers := make([]*Publisher, 0, 100)
 	for rows.Next() {
 		var p Publisher
 		var bidderParamsJSON []byte
@@ -293,8 +293,8 @@ func NewDBConnection(host, port, user, password, dbname, sslmode string) (*sql.D
 	}
 
 	// Configure connection pool for high-concurrency auction workload
-	db.SetMaxOpenConns(100)  // Increased for parallel bidder lookups
-	db.SetMaxIdleConns(25)   // Keep more idle connections ready
+	db.SetMaxOpenConns(100) // Increased for parallel bidder lookups
+	db.SetMaxIdleConns(25)  // Keep more idle connections ready
 	db.SetConnMaxLifetime(10 * time.Minute)
 
 	// Test connection

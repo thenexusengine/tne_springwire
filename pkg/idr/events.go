@@ -100,7 +100,8 @@ func (r *EventRecorder) flushWorker() {
 				return
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-			r.sendEvents(ctx, events)
+			//nolint:errcheck // Best-effort send; errors silently discarded
+			_ = r.sendEvents(ctx, events) // Best-effort send; errors silently discarded
 			cancel()
 		}
 	}

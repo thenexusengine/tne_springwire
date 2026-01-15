@@ -3,6 +3,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -99,7 +100,7 @@ func NewWithConfig(redisURL string, cfg *ClientConfig) (*Client, error) {
 // HGet gets a hash field value
 func (c *Client) HGet(ctx context.Context, key, field string) (string, error) {
 	result, err := c.client.HGet(ctx, key, field).Result()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return "", nil
 	}
 	return result, err

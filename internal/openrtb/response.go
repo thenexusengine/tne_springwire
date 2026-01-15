@@ -80,11 +80,11 @@ const (
 
 // BidResponseExt represents PBS-specific response extensions
 type BidResponseExt struct {
-	ResponseTimeMillis map[string]int    `json:"responsetimemillis,omitempty"`
+	ResponseTimeMillis map[string]int                `json:"responsetimemillis,omitempty"`
 	Errors             map[string][]ExtBidderMessage `json:"errors,omitempty"`
 	Warnings           map[string][]ExtBidderMessage `json:"warnings,omitempty"`
-	TMMaxRequest       int               `json:"tmaxrequest,omitempty"`
-	Prebid             *ExtBidResponsePrebid `json:"prebid,omitempty"`
+	TMMaxRequest       int                           `json:"tmaxrequest,omitempty"`
+	Prebid             *ExtBidResponsePrebid         `json:"prebid,omitempty"`
 }
 
 // ExtBidderMessage represents bidder message
@@ -95,8 +95,8 @@ type ExtBidderMessage struct {
 
 // ExtBidResponsePrebid represents prebid response extension
 type ExtBidResponsePrebid struct {
-	AuctionTimestamp int64                     `json:"auctiontimestamp,omitempty"`
-	Passthrough      json.RawMessage           `json:"passthrough,omitempty"`
+	AuctionTimestamp int64           `json:"auctiontimestamp,omitempty"`
+	Passthrough      json.RawMessage `json:"passthrough,omitempty"`
 }
 
 // BidExt represents bid extension
@@ -106,19 +106,19 @@ type BidExt struct {
 
 // ExtBidPrebid represents prebid bid extension
 type ExtBidPrebid struct {
-	Cache       *ExtBidPrebidCache `json:"cache,omitempty"`
-	Targeting   map[string]string  `json:"targeting,omitempty"`
-	Type        string             `json:"type,omitempty"`
-	Video       *ExtBidPrebidVideo `json:"video,omitempty"`
-	Events      *ExtBidPrebidEvents `json:"events,omitempty"`
-	Meta        *ExtBidPrebidMeta  `json:"meta,omitempty"`
+	Cache     *ExtBidPrebidCache  `json:"cache,omitempty"`
+	Targeting map[string]string   `json:"targeting,omitempty"`
+	Type      string              `json:"type,omitempty"`
+	Video     *ExtBidPrebidVideo  `json:"video,omitempty"`
+	Events    *ExtBidPrebidEvents `json:"events,omitempty"`
+	Meta      *ExtBidPrebidMeta   `json:"meta,omitempty"`
 }
 
 // ExtBidPrebidCache represents cache info
 type ExtBidPrebidCache struct {
-	Key  string `json:"key,omitempty"`
-	URL  string `json:"url,omitempty"`
-	Bids *CacheInfo `json:"bids,omitempty"`
+	Key     string     `json:"key,omitempty"`
+	URL     string     `json:"url,omitempty"`
+	Bids    *CacheInfo `json:"bids,omitempty"`
 	VastXML *CacheInfo `json:"vastXml,omitempty"`
 }
 
@@ -142,20 +142,20 @@ type ExtBidPrebidEvents struct {
 
 // ExtBidPrebidMeta represents bid metadata
 type ExtBidPrebidMeta struct {
-	AdvertiserID        int      `json:"advertiserId,omitempty"`
-	AdvertiserName      string   `json:"advertiserName,omitempty"`
-	AgencyID            int      `json:"agencyId,omitempty"`
-	AgencyName          string   `json:"agencyName,omitempty"`
-	BrandID             int      `json:"brandId,omitempty"`
-	BrandName           string   `json:"brandName,omitempty"`
-	DChain              json.RawMessage `json:"dchain,omitempty"`
-	DemandSource        string   `json:"demandSource,omitempty"`
-	MediaType           string   `json:"mediaType,omitempty"`
-	NetworkID           int      `json:"networkId,omitempty"`
-	NetworkName         string   `json:"networkName,omitempty"`
-	PrimaryCatID        string   `json:"primaryCatId,omitempty"`
-	SecondaryCatIDs     []string `json:"secondaryCatIds,omitempty"`
-	RendererName        string   `json:"rendererName,omitempty"`
-	RendererVersion     string   `json:"rendererVersion,omitempty"`
-	RendererURL         string   `json:"rendererUrl,omitempty"`
+	AdvertiserID    int             `json:"advertiserId,omitempty"`
+	AdvertiserName  string          `json:"advertiserName,omitempty"`
+	AgencyID        int             `json:"agencyId,omitempty"`
+	AgencyName      string          `json:"agencyName,omitempty"`
+	BrandID         int             `json:"brandId,omitempty"`
+	BrandName       string          `json:"brandName,omitempty"`
+	DChain          json.RawMessage `json:"dchain,omitempty"`
+	DemandSource    string          `json:"demandSource,omitempty"`
+	MediaType       string          `json:"mediaType,omitempty"`
+	NetworkID       int             `json:"networkId,omitempty"`
+	NetworkName     string          `json:"networkName,omitempty"`
+	PrimaryCatID    string          `json:"primaryCatId,omitempty"`
+	SecondaryCatIDs []string        `json:"secondaryCatIds,omitempty"`
+	RendererName    string          `json:"rendererName,omitempty"`
+	RendererVersion string          `json:"rendererVersion,omitempty"`
+	RendererURL     string          `json:"rendererUrl,omitempty"`
 }

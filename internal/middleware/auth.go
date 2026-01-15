@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	pbsconfig "github.com/thenexusengine/tne_springwire/internal/config"
 	"github.com/rs/zerolog/log"
+
+	pbsconfig "github.com/thenexusengine/tne_springwire/internal/config"
 )
 
 // Redis key patterns (must match IDR's api_keys.py)
@@ -28,12 +29,12 @@ type RedisClient interface {
 
 // AuthConfig holds authentication configuration
 type AuthConfig struct {
-	Enabled       bool
-	APIKeys       map[string]string // key -> publisher ID mapping (local fallback)
-	HeaderName    string            // Header to check for API key (default: X-API-Key)
-	BypassPaths   []string          // Paths that don't require auth (e.g., /health, /status)
-	RedisURL      string            // Redis URL for shared API keys
-	UseRedis      bool              // Whether to use Redis for API key validation
+	Enabled     bool
+	APIKeys     map[string]string // key -> publisher ID mapping (local fallback)
+	HeaderName  string            // Header to check for API key (default: X-API-Key)
+	BypassPaths []string          // Paths that don't require auth (e.g., /health, /status)
+	RedisURL    string            // Redis URL for shared API keys
+	UseRedis    bool              // Whether to use Redis for API key validation
 }
 
 // DefaultAuthConfig returns default auth configuration
@@ -46,8 +47,8 @@ func DefaultAuthConfig() *AuthConfig {
 		BypassPaths: []string{"/health", "/status", "/metrics", "/info/bidders", "/cookie_sync", "/setuid", "/optout", "/openrtb2/auction", "/admin/dashboard", "/admin/metrics"},
 		// Note: /openrtb2/auction uses PublisherAuth middleware instead of API key auth
 		// Note: /admin/dashboard and /admin/metrics are public for team monitoring
-		RedisURL:    redisURL,
-		UseRedis:    redisURL != "" && os.Getenv("AUTH_USE_REDIS") != "false",
+		RedisURL: redisURL,
+		UseRedis: redisURL != "" && os.Getenv("AUTH_USE_REDIS") != "false",
 	}
 }
 

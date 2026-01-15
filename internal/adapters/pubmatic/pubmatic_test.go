@@ -101,4 +101,3 @@ func TestInfo(t *testing.T) {
 		t.Errorf("Expected GVL vendor ID 76, got %d", info.GVLVendorID)
 	}
 }
-

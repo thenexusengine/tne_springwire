@@ -11,24 +11,24 @@ import (
 
 // Bidder represents a bidder configuration from the database
 type Bidder struct {
-	ID             string                 `json:"id"`
-	BidderCode     string                 `json:"bidder_code"`
-	BidderName     string                 `json:"bidder_name"`
-	EndpointURL    string                 `json:"endpoint_url"`
-	TimeoutMs      int                    `json:"timeout_ms"`
-	Enabled        bool                   `json:"enabled"`
-	Status         string                 `json:"status"`
-	SupportsBanner bool                   `json:"supports_banner"`
-	SupportsVideo  bool                   `json:"supports_video"`
-	SupportsNative bool                   `json:"supports_native"`
-	SupportsAudio  bool                   `json:"supports_audio"`
-	GVLVendorID    *int                   `json:"gvl_vendor_id,omitempty"`
-	HTTPHeaders    map[string]interface{} `json:"http_headers"`
-	Description    string                 `json:"description,omitempty"`
-	DocumentationURL string               `json:"documentation_url,omitempty"`
-	ContactEmail   string                 `json:"contact_email,omitempty"`
-	CreatedAt      time.Time              `json:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at"`
+	ID               string                 `json:"id"`
+	BidderCode       string                 `json:"bidder_code"`
+	BidderName       string                 `json:"bidder_name"`
+	EndpointURL      string                 `json:"endpoint_url"`
+	TimeoutMs        int                    `json:"timeout_ms"`
+	Enabled          bool                   `json:"enabled"`
+	Status           string                 `json:"status"`
+	SupportsBanner   bool                   `json:"supports_banner"`
+	SupportsVideo    bool                   `json:"supports_video"`
+	SupportsNative   bool                   `json:"supports_native"`
+	SupportsAudio    bool                   `json:"supports_audio"`
+	GVLVendorID      *int                   `json:"gvl_vendor_id,omitempty"`
+	HTTPHeaders      map[string]interface{} `json:"http_headers"`
+	Description      string                 `json:"description,omitempty"`
+	DocumentationURL string                 `json:"documentation_url,omitempty"`
+	ContactEmail     string                 `json:"contact_email,omitempty"`
+	CreatedAt        time.Time              `json:"created_at"`
+	UpdatedAt        time.Time              `json:"updated_at"`
 }
 
 // PublisherBidder represents a bidder with publisher-specific configuration
@@ -119,7 +119,7 @@ func (s *BidderStore) ListActive(ctx context.Context) ([]*Bidder, error) {
 	}
 	defer rows.Close()
 
-	var bidders []*Bidder
+	bidders := make([]*Bidder, 0, 100)
 	for rows.Next() {
 		var b Bidder
 		var httpHeadersJSON []byte
@@ -203,7 +203,7 @@ func (s *BidderStore) GetForPublisher(ctx context.Context, publisherID string) (
 	}
 	defer rows.Close()
 
-	var bidders []*PublisherBidder
+	bidders := make([]*PublisherBidder, 0, 100)
 	for rows.Next() {
 		var pb PublisherBidder
 		var httpHeadersJSON []byte
@@ -273,7 +273,7 @@ func (s *BidderStore) List(ctx context.Context) ([]*Bidder, error) {
 	}
 	defer rows.Close()
 
-	var bidders []*Bidder
+	bidders := make([]*Bidder, 0, 10)
 	for rows.Next() {
 		var b Bidder
 		var httpHeadersJSON []byte
@@ -479,7 +479,7 @@ func (s *BidderStore) GetCapabilities(ctx context.Context, banner, video, native
 	}
 	defer rows.Close()
 
-	var bidders []*Bidder
+	bidders := make([]*Bidder, 0, 100)
 	for rows.Next() {
 		var b Bidder
 		var httpHeadersJSON []byte

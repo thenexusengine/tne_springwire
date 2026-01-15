@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -245,7 +246,7 @@ func TestBodyReader_Read(t *testing.T) {
 
 	// Third read: "d" with EOF
 	n, err = reader.Read(buf)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("expected EOF on third read, got %v", err)
 	}
 	if n != 1 {
@@ -257,7 +258,7 @@ func TestBodyReader_Read(t *testing.T) {
 
 	// Fourth read: EOF only
 	n, err = reader.Read(buf)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("expected EOF, got %v", err)
 	}
 	if n != 0 {
@@ -283,7 +284,7 @@ func TestBodyReader_Empty(t *testing.T) {
 
 	buf := make([]byte, 10)
 	n, err := reader.Read(buf)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("expected EOF, got %v", err)
 	}
 	if n != 0 {

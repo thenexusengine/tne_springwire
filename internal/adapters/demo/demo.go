@@ -41,7 +41,7 @@ func (a *Adapter) MakeRequests(request *openrtb.BidRequest, _ *adapters.ExtraReq
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return nil, []error{fmt.Errorf("failed to marshal mock response: %v", err)}
+		return nil, []error{fmt.Errorf("failed to marshal mock response: %w", err)}
 	}
 
 	// Return a "request" that contains the mock response
@@ -63,7 +63,7 @@ func (a *Adapter) MakeBids(request *openrtb.BidRequest, responseData *adapters.R
 	// For demo adapter, the "response" is our mock data
 	var bidResp openrtb.BidResponse
 	if err := json.Unmarshal(responseData.Body, &bidResp); err != nil {
-		return nil, []error{fmt.Errorf("failed to parse mock response: %v", err)}
+		return nil, []error{fmt.Errorf("failed to parse mock response: %w", err)}
 	}
 
 	response := &adapters.BidderResponse{
@@ -101,7 +101,7 @@ func (a *Adapter) generateMockResponse(request *openrtb.BidRequest) *openrtb.Bid
 	}
 
 	// Generate bids for each impression
-	var bids []openrtb.Bid
+	bids := make([]openrtb.Bid, 0, len(request.Imp))
 	for _, imp := range request.Imp {
 		// Randomly decide whether to bid
 		if rng.Float64() > a.bidRate {
@@ -129,13 +129,13 @@ func (a *Adapter) generateMockResponse(request *openrtb.BidRequest) *openrtb.Bid
 		}
 
 		bid := openrtb.Bid{
-			ID:    fmt.Sprintf("demo-bid-%s-%d", imp.ID, time.Now().UnixNano()),
-			ImpID: imp.ID,
-			Price: cpm,
-			W:     int(width),
-			H:     int(height),
-			AdM:   a.generateMockCreative(int(width), int(height), cpm),
-			CRID:  fmt.Sprintf("demo-creative-%d", rng.Intn(1000)),
+			ID:      fmt.Sprintf("demo-bid-%s-%d", imp.ID, time.Now().UnixNano()),
+			ImpID:   imp.ID,
+			Price:   cpm,
+			W:       int(width),
+			H:       int(height),
+			AdM:     a.generateMockCreative(int(width), int(height), cpm),
+			CRID:    fmt.Sprintf("demo-creative-%d", rng.Intn(1000)),
 			ADomain: []string{"demo-advertiser.example.com"},
 		}
 
@@ -185,5 +185,7 @@ func Info() adapters.BidderInfo {
 }
 
 func init() {
-	adapters.RegisterAdapter("demo", New(""), Info())
+	if err := adapters.RegisterAdapter("demo", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register demo adapter: %v", err))
+	}
 }

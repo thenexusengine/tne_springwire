@@ -802,13 +802,13 @@ func BenchmarkTransformRequest(b *testing.B) {
 
 // mockRedisClient implements RedisClient for testing
 type mockRedisClient struct {
-	hashData      map[string]string
-	setData       []string
-	hgetAllErr    error
-	sMembersErr   error
-	hgetErr       error
-	callCount     int
-	mu            sync.Mutex
+	hashData    map[string]string
+	setData     []string
+	hgetAllErr  error
+	sMembersErr error
+	hgetErr     error
+	callCount   int
+	mu          sync.Mutex
 }
 
 func newMockRedisClient() *mockRedisClient {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -300,7 +301,7 @@ func TestPublisherAuth_DomainValidation_Allowed(t *testing.T) {
 func TestPublisherAuth_AppPublisher(t *testing.T) {
 	config := &PublisherAuthConfig{
 		Enabled:           true,
-		AllowUnregistered: true, // Allow since no DB configured
+		AllowUnregistered: true,                             // Allow since no DB configured
 		RegisteredPubs:    map[string]string{"app_pub": ""}, // Deprecated but kept for backward compat
 		ValidateDomain:    false,
 	}
@@ -769,7 +770,7 @@ func TestPublisherAuthError_Unwrap(t *testing.T) {
 		Cause:   cause,
 	}
 
-	if err.Unwrap() != cause {
+	if !errors.Is(err.Unwrap(), cause) {
 		t.Error("Expected Unwrap to return cause")
 	}
 }
@@ -797,7 +798,7 @@ func TestMiddleware_InvalidJSON(t *testing.T) {
 	}))
 
 	// Invalid JSON should pass through to main handler
-	req := httptest.NewRequest(http.MethodPost, "/openrtb2/auction", 
+	req := httptest.NewRequest(http.MethodPost, "/openrtb2/auction",
 		bytes.NewReader([]byte("invalid json{")))
 	rr := httptest.NewRecorder()
 

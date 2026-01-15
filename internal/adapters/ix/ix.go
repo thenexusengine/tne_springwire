@@ -29,7 +29,7 @@ func New(endpoint string) *Adapter {
 func (a *Adapter) MakeRequests(request *openrtb.BidRequest, extraInfo *adapters.ExtraRequestInfo) ([]*adapters.RequestData, []error) {
 	requestBody, err := json.Marshal(request)
 	if err != nil {
-		return nil, []error{fmt.Errorf("failed to marshal request: %v", err)}
+		return nil, []error{fmt.Errorf("failed to marshal request: %w", err)}
 	}
 
 	headers := http.Header{}
@@ -52,7 +52,7 @@ func (a *Adapter) MakeBids(request *openrtb.BidRequest, responseData *adapters.R
 
 	var bidResp openrtb.BidResponse
 	if err := json.Unmarshal(responseData.Body, &bidResp); err != nil {
-		return nil, []error{fmt.Errorf("failed to parse response: %v", err)}
+		return nil, []error{fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	response := &adapters.BidderResponse{Currency: bidResp.Cur, ResponseID: bidResp.ID, Bids: make([]*adapters.TypedBid, 0)}
@@ -86,5 +86,7 @@ func Info() adapters.BidderInfo {
 }
 
 func init() {
-	adapters.RegisterAdapter("ix", New(""), Info())
+	if err := adapters.RegisterAdapter("ix", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register ix adapter: %v", err))
+	}
 }

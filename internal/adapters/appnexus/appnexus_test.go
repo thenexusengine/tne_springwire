@@ -226,4 +226,3 @@ func TestInfo(t *testing.T) {
 		t.Error("Expected banner support in site capabilities")
 	}
 }
-

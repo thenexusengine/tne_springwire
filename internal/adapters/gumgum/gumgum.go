@@ -3,6 +3,7 @@ package gumgum
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
@@ -57,4 +58,8 @@ func Info() adapters.BidderInfo {
 	}
 }
 
-func init() { adapters.RegisterAdapter("gumgum", New(""), Info()) }
+func init() {
+	if err := adapters.RegisterAdapter("gumgum", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register gumgum adapter: %v", err))
+	}
+}

@@ -39,7 +39,7 @@ func (a *Adapter) MakeRequests(request *openrtb.BidRequest, extraInfo *adapters.
 
 		requestBody, err := json.Marshal(reqCopy)
 		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to marshal request for imp %s: %v", imp.ID, err))
+			errors = append(errors, fmt.Errorf("failed to marshal request for imp %s: %w", imp.ID, err))
 			continue
 		}
 
@@ -74,7 +74,7 @@ func (a *Adapter) MakeBids(request *openrtb.BidRequest, responseData *adapters.R
 
 	var bidResp openrtb.BidResponse
 	if err := json.Unmarshal(responseData.Body, &bidResp); err != nil {
-		return nil, []error{fmt.Errorf("failed to parse response: %v", err)}
+		return nil, []error{fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	response := &adapters.BidderResponse{
@@ -129,5 +129,7 @@ func Info() adapters.BidderInfo {
 }
 
 func init() {
-	adapters.RegisterAdapter("rubicon", New(""), Info())
+	if err := adapters.RegisterAdapter("rubicon", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register rubicon adapter: %v", err))
+	}
 }

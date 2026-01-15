@@ -3,6 +3,8 @@
 package thirtythreeacross
 
 import (
+	"fmt"
+
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
 )
 
@@ -42,5 +44,7 @@ func Info() adapters.BidderInfo {
 }
 
 func init() {
-	adapters.RegisterAdapter(bidderCode, New(""), Info())
+	if err := adapters.RegisterAdapter(bidderCode, New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register %s adapter: %v", bidderCode, err))
+	}
 }

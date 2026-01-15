@@ -41,23 +41,23 @@ type FilterConfig struct {
 
 // CookieSyncResponse is the response body for /cookie_sync
 type CookieSyncResponse struct {
-	Status       string               `json:"status"`
-	BidderStatus []BidderSyncStatus   `json:"bidder_status,omitempty"`
+	Status       string             `json:"status"`
+	BidderStatus []BidderSyncStatus `json:"bidder_status,omitempty"`
 }
 
 // BidderSyncStatus is the sync status for a single bidder
 type BidderSyncStatus struct {
-	Bidder   string                `json:"bidder"`
-	NoCookie bool                  `json:"no_cookie,omitempty"`
-	UserSync *usersync.SyncInfo    `json:"usersync,omitempty"`
-	Error    string                `json:"error,omitempty"`
+	Bidder   string             `json:"bidder"`
+	NoCookie bool               `json:"no_cookie,omitempty"`
+	UserSync *usersync.SyncInfo `json:"usersync,omitempty"`
+	Error    string             `json:"error,omitempty"`
 }
 
 // CookieSyncHandler handles cookie sync requests
 type CookieSyncHandler struct {
-	syncers   map[string]*usersync.Syncer
-	hostURL   string
-	maxSyncs  int
+	syncers  map[string]*usersync.Syncer
+	hostURL  string
+	maxSyncs int
 }
 
 // CookieSyncConfig holds configuration for the cookie sync handler
@@ -201,6 +201,17 @@ func (h *CookieSyncHandler) getBiddersToSync(req CookieSyncRequest, cookie *user
 	} else {
 		// No bidders specified and no coop sync - return common bidders
 		bidders = []string{"appnexus", "rubicon", "pubmatic", "openx", "triplelift"}
+	}
+
+	// Filter out bidders that already have UIDs (optimization to avoid redundant syncs)
+	if cookie != nil {
+		needsSync := make([]string, 0, len(bidders))
+		for _, bidder := range bidders {
+			if !cookie.HasUID(bidder) {
+				needsSync = append(needsSync, bidder)
+			}
+		}
+		return needsSync
 	}
 
 	return bidders

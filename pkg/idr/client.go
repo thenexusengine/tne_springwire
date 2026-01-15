@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,9 +29,9 @@ type Client struct {
 func newIDRTransport(timeout time.Duration) *http.Transport {
 	return &http.Transport{
 		// Connection pool - IDR is a single host, so per-host settings matter most
-		MaxIdleConns:        20,              // Keep connections ready
-		MaxIdleConnsPerHost: 20,              // All connections are to IDR
-		MaxConnsPerHost:     100,             // Allow concurrent requests during load spikes
+		MaxIdleConns:        20,                // Keep connections ready
+		MaxIdleConnsPerHost: 20,                // All connections are to IDR
+		MaxConnsPerHost:     100,               // Allow concurrent requests during load spikes
 		IdleConnTimeout:     120 * time.Second, // Keep connections alive longer for reuse
 
 		// Low timeouts for fast local service
@@ -88,32 +89,32 @@ type SelectPartnersRequest struct {
 // MinimalRequest contains only the fields IDR needs for partner selection
 // P1-15: Reduces payload size significantly vs sending full OpenRTB request
 type MinimalRequest struct {
-	ID   string           `json:"id"`
-	Site *MinimalSite     `json:"site,omitempty"`
-	App  *MinimalApp      `json:"app,omitempty"`
-	Imp  []MinimalImp     `json:"imp"`
-	Geo  *MinimalGeo      `json:"geo,omitempty"`
-	DeviceType string    `json:"device_type,omitempty"`
+	ID         string       `json:"id"`
+	Site       *MinimalSite `json:"site,omitempty"`
+	App        *MinimalApp  `json:"app,omitempty"`
+	Imp        []MinimalImp `json:"imp"`
+	Geo        *MinimalGeo  `json:"geo,omitempty"`
+	DeviceType string       `json:"device_type,omitempty"`
 }
 
 // MinimalSite contains essential site info for partner selection
 type MinimalSite struct {
-	Domain     string `json:"domain,omitempty"`
-	Publisher  string `json:"publisher,omitempty"`
+	Domain     string   `json:"domain,omitempty"`
+	Publisher  string   `json:"publisher,omitempty"`
 	Categories []string `json:"cat,omitempty"`
 }
 
 // MinimalApp contains essential app info for partner selection
 type MinimalApp struct {
-	Bundle     string `json:"bundle,omitempty"`
-	Publisher  string `json:"publisher,omitempty"`
+	Bundle     string   `json:"bundle,omitempty"`
+	Publisher  string   `json:"publisher,omitempty"`
 	Categories []string `json:"cat,omitempty"`
 }
 
 // MinimalImp contains essential impression info
 type MinimalImp struct {
 	ID         string   `json:"id"`
-	MediaTypes []string `json:"media_types"` // "banner", "video", "native", "audio"
+	MediaTypes []string `json:"media_types"`     // "banner", "video", "native", "audio"
 	Sizes      []string `json:"sizes,omitempty"` // "300x250", "728x90", etc.
 }
 
@@ -127,7 +128,7 @@ type MinimalGeo struct {
 type SelectPartnersResponse struct {
 	SelectedBidders  []SelectedBidder `json:"selected_bidders"`
 	ExcludedBidders  []ExcludedBidder `json:"excluded_bidders,omitempty"`
-	Mode             string           `json:"mode"`    // "normal", "shadow", "bypass"
+	Mode             string           `json:"mode"` // "normal", "shadow", "bypass"
 	ProcessingTimeMs float64          `json:"processing_time_ms"`
 }
 
@@ -136,7 +137,7 @@ type SelectedBidder struct {
 	BidderCode string  `json:"bidder_code"`
 	Score      float64 `json:"score"`
 	Confidence float64 `json:"confidence"`
-	Reason     string  `json:"reason"`            // ANCHOR, HIGH_SCORE, DIVERSITY, EXPLORATION, etc.
+	Reason     string  `json:"reason"`             // ANCHOR, HIGH_SCORE, DIVERSITY, EXPLORATION, etc.
 	Category   string  `json:"category,omitempty"` // Bidder category for diversity
 }
 
@@ -182,8 +183,7 @@ func (c *Client) SelectPartners(ctx context.Context, ortbRequest json.RawMessage
 
 		if resp.StatusCode != http.StatusOK {
 			// Read error response body for better debugging
-			errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-			if len(errBody) > 0 {
+			if errBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024)); err == nil && len(errBody) > 0 {
 				return fmt.Errorf("IDR service returned status %d: %s", resp.StatusCode, string(errBody))
 			}
 			return fmt.Errorf("IDR service returned status %d", resp.StatusCode)
@@ -201,7 +201,7 @@ func (c *Client) SelectPartners(ctx context.Context, ortbRequest json.RawMessage
 	})
 
 	// If circuit is open, fail open (return nil, allowing all bidders)
-	if err == ErrCircuitOpen {
+	if errors.Is(err, ErrCircuitOpen) {
 		return nil, nil // Caller should fall back to all bidders
 	}
 
@@ -264,7 +264,7 @@ func (c *Client) SelectPartnersMinimal(ctx context.Context, minReq *MinimalReque
 		return nil
 	})
 
-	if err == ErrCircuitOpen {
+	if errors.Is(err, ErrCircuitOpen) {
 		return nil, nil
 	}
 
@@ -323,7 +323,10 @@ func (c *Client) SetShadowMode(ctx context.Context, enabled bool) error {
 }
 
 func (c *Client) setMode(ctx context.Context, path string, enabled bool) error {
-	body, _ := json.Marshal(map[string]bool{"enabled": enabled})
+	body, err := json.Marshal(map[string]bool{"enabled": enabled})
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
 
 	url := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
@@ -340,8 +343,7 @@ func (c *Client) setMode(ctx context.Context, path string, enabled bool) error {
 
 	if resp.StatusCode != http.StatusOK {
 		// Read error response body for better debugging
-		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		if len(errBody) > 0 {
+		if errBody, err := io.ReadAll(io.LimitReader(resp.Body, 1024)); err == nil && len(errBody) > 0 {
 			return fmt.Errorf("IDR service returned status %d: %s", resp.StatusCode, string(errBody))
 		}
 		return fmt.Errorf("IDR service returned status %d", resp.StatusCode)
@@ -373,15 +375,15 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 
 // FPDConfig represents First Party Data configuration from the IDR service
 type FPDConfig struct {
-	Enabled             bool     `json:"enabled"`
-	SiteEnabled         bool     `json:"site_enabled"`
-	UserEnabled         bool     `json:"user_enabled"`
-	ImpEnabled          bool     `json:"imp_enabled"`
-	GlobalEnabled       bool     `json:"global_enabled"`
-	BidderConfigEnabled bool     `json:"bidderconfig_enabled"`
-	ContentEnabled      bool     `json:"content_enabled"`
-	EIDsEnabled         bool     `json:"eids_enabled"`
-	EIDSources          string   `json:"eid_sources"` // Comma-separated list
+	Enabled             bool   `json:"enabled"`
+	SiteEnabled         bool   `json:"site_enabled"`
+	UserEnabled         bool   `json:"user_enabled"`
+	ImpEnabled          bool   `json:"imp_enabled"`
+	GlobalEnabled       bool   `json:"global_enabled"`
+	BidderConfigEnabled bool   `json:"bidderconfig_enabled"`
+	ContentEnabled      bool   `json:"content_enabled"`
+	EIDsEnabled         bool   `json:"eids_enabled"`
+	EIDSources          string `json:"eid_sources"` // Comma-separated list
 }
 
 // GetFPDConfig retrieves FPD configuration from the IDR service

@@ -10,8 +10,8 @@ func TestIVTDetector_SuspiciousUA(t *testing.T) {
 	detector := NewIVTDetector(nil) // Use defaults
 
 	tests := []struct {
-		name           string
-		userAgent      string
+		name               string
+		userAgent          string
 		shouldBeSuspicious bool
 	}{
 		{"Normal Chrome", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36", false},
@@ -51,9 +51,9 @@ func TestIVTDetector_RefererValidation(t *testing.T) {
 	detector := NewIVTDetector(nil)
 
 	tests := []struct {
-		name           string
-		referer        string
-		domain         string
+		name            string
+		referer         string
+		domain          string
 		shouldBeInvalid bool
 	}{
 		{"Valid referer", "https://example.com/page", "example.com", false},
@@ -90,12 +90,12 @@ func TestIVTDetector_Scoring(t *testing.T) {
 	detector := NewIVTDetector(nil)
 
 	tests := []struct {
-		name         string
-		userAgent    string
-		referer      string
-		domain       string
-		expectScore  int // Approximate score
-		expectBlock  bool
+		name        string
+		userAgent   string
+		referer     string
+		domain      string
+		expectScore int // Approximate score
+		expectBlock bool
 	}{
 		{
 			name:        "Clean request",

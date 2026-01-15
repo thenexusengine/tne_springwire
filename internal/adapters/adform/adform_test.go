@@ -173,7 +173,6 @@ func TestMakeBids_BadStatus(t *testing.T) {
 	}
 }
 
-
 func TestMakeBids_InvalidJSON(t *testing.T) {
 	adapter := New("")
 

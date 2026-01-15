@@ -334,7 +334,7 @@ func (r *DynamicRegistry) RegisterWithStaticRegistry() error {
 		info := adapter.Info()
 
 		// Try to register (ignore errors if already registered)
-		_ = adapters.DefaultRegistry.Register(code, adapter, info)
+		_ = adapters.DefaultRegistry.Register(code, adapter, info) //nolint:errcheck
 	}
 
 	return nil
@@ -345,7 +345,7 @@ func (r *DynamicRegistry) UnregisterFromStaticRegistry() {
 	r.mu.RLock()
 	codes := make([]string, 0, len(r.adapters))
 	for code := range r.adapters {
-		codes = append(codes, code)
+		codes = append(codes, code) //nolint:staticcheck
 	}
 	r.mu.RUnlock()
 

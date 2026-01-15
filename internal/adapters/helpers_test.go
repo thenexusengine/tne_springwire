@@ -61,7 +61,7 @@ func TestBidderError_Unwrap(t *testing.T) {
 	}
 
 	unwrapped := err.Unwrap()
-	if unwrapped != cause {
+	if !errors.Is(unwrapped, cause) {
 		t.Errorf("expected unwrapped to be cause")
 	}
 }
@@ -89,7 +89,7 @@ func TestNewMarshalError(t *testing.T) {
 	if err.Code != ErrorCodeMarshal {
 		t.Errorf("expected MARSHAL_ERROR, got %s", err.Code)
 	}
-	if err.Cause != cause {
+	if !errors.Is(err.Cause, cause) {
 		t.Error("expected cause to be set")
 	}
 	if !strings.Contains(err.Message, "marshal") {
@@ -138,7 +138,7 @@ func TestNewParseError(t *testing.T) {
 	if err.Code != ErrorCodeParse {
 		t.Errorf("expected PARSE_ERROR, got %s", err.Code)
 	}
-	if err.Cause != cause {
+	if !errors.Is(err.Cause, cause) {
 		t.Error("expected cause to be set")
 	}
 }

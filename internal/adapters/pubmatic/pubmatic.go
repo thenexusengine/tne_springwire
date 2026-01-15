@@ -33,7 +33,7 @@ func (a *Adapter) MakeRequests(request *openrtb.BidRequest, extraInfo *adapters.
 
 	requestBody, err := json.Marshal(request)
 	if err != nil {
-		return nil, []error{fmt.Errorf("failed to marshal request: %v", err)}
+		return nil, []error{fmt.Errorf("failed to marshal request: %w", err)}
 	}
 
 	headers := http.Header{}
@@ -66,7 +66,7 @@ func (a *Adapter) MakeBids(request *openrtb.BidRequest, responseData *adapters.R
 
 	var bidResp openrtb.BidResponse
 	if err := json.Unmarshal(responseData.Body, &bidResp); err != nil {
-		return nil, []error{fmt.Errorf("failed to parse response: %v", err)}
+		return nil, []error{fmt.Errorf("failed to parse response: %w", err)}
 	}
 
 	response := &adapters.BidderResponse{
@@ -123,5 +123,7 @@ func Info() adapters.BidderInfo {
 }
 
 func init() {
-	adapters.RegisterAdapter("pubmatic", New(""), Info())
+	if err := adapters.RegisterAdapter("pubmatic", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register pubmatic adapter: %v", err))
+	}
 }

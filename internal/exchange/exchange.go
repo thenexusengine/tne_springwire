@@ -4,6 +4,7 @@ package exchange
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -27,15 +28,15 @@ type MetricsRecorder interface {
 
 // Exchange orchestrates the auction process
 type Exchange struct {
-	registry         *adapters.Registry
-	dynamicRegistry  *ortb.DynamicRegistry
-	httpClient       adapters.HTTPClient
-	idrClient        *idr.Client
-	eventRecorder    *idr.EventRecorder
-	config           *Config
-	fpdProcessor     *fpd.Processor
-	eidFilter        *fpd.EIDFilter
-	metrics          MetricsRecorder
+	registry        *adapters.Registry
+	dynamicRegistry *ortb.DynamicRegistry
+	httpClient      adapters.HTTPClient
+	idrClient       *idr.Client
+	eventRecorder   *idr.EventRecorder
+	config          *Config
+	fpdProcessor    *fpd.Processor
+	eidFilter       *fpd.EIDFilter
+	metrics         MetricsRecorder
 
 	// configMu protects dynamicRegistry, fpdProcessor, eidFilter, and config.FPD
 	// for safe concurrent access during runtime config updates
@@ -64,8 +65,8 @@ const (
 
 // P1-4: Timeout bounds for dynamic adapter validation
 const (
-	minBidderTimeout = 10 * time.Millisecond  // Minimum reasonable timeout
-	maxBidderTimeout = 5 * time.Second        // Maximum to prevent resource exhaustion
+	minBidderTimeout = 10 * time.Millisecond // Minimum reasonable timeout
+	maxBidderTimeout = 5 * time.Second       // Maximum to prevent resource exhaustion
 )
 
 // maxAllowedTMax caps TMax at a reasonable maximum to prevent resource exhaustion (10 seconds)
@@ -296,14 +297,14 @@ type BidderResult struct {
 
 // DebugInfo contains debug information
 type DebugInfo struct {
-	RequestTime       time.Time
-	TotalLatency      time.Duration
-	IDRLatency        time.Duration
-	BidderLatencies   map[string]time.Duration
-	SelectedBidders   []string
-	ExcludedBidders   []string
-	Errors            map[string][]string
-	errorsMu          sync.Mutex // Protects concurrent access to Errors map
+	RequestTime     time.Time
+	TotalLatency    time.Duration
+	IDRLatency      time.Duration
+	BidderLatencies map[string]time.Duration
+	SelectedBidders []string
+	ExcludedBidders []string
+	Errors          map[string][]string
+	errorsMu        sync.Mutex // Protects concurrent access to Errors map
 }
 
 // AddError safely adds errors to the Errors map with mutex protection
@@ -406,9 +407,9 @@ func ValidateRequest(req *openrtb.BidRequest) *RequestValidationError {
 
 // BidValidationError represents a bid validation failure
 type BidValidationError struct {
-	BidID   string
-	ImpID   string
-	Reason  string
+	BidID      string
+	ImpID      string
+	Reason     string
 	BidderCode string
 }
 
@@ -1081,7 +1082,7 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 					Float64("price", tb.Bid.Price).
 					Err(validErr).
 					Msg("bid validation failed")
-				validationErrors = append(validationErrors, validErr)
+				validationErrors = append(validationErrors, validErr) //nolint:staticcheck
 				response.DebugInfo.AppendError(bidderCode, validErr.Error())
 				continue
 			}
@@ -1094,7 +1095,7 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 					BidderCode: bidderCode,
 					Reason:     "duplicate bid ID",
 				}
-				validationErrors = append(validationErrors, dupErr)
+				validationErrors = append(validationErrors, dupErr) //nolint:staticcheck
 				response.DebugInfo.AppendError(bidderCode, dupErr.Error())
 				continue
 			}
@@ -1215,11 +1216,6 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 	return response, nil
 }
 
-// callBidders calls all selected bidders in parallel (legacy, without FPD)
-func (e *Exchange) callBidders(ctx context.Context, req *openrtb.BidRequest, bidders []string, timeout time.Duration) map[string]*BidderResult {
-	return e.callBiddersWithFPD(ctx, req, bidders, timeout, nil)
-}
-
 // callBiddersWithFPD calls all selected bidders in parallel with FPD support
 // P0-1: Uses sync.Map for thread-safe result collection
 // P0-4: Uses semaphore to limit concurrent bidder goroutines
@@ -1252,7 +1248,7 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 				case sem <- struct{}{}:
 					defer func() { <-sem }() // Release on completion
 				case <-ctx.Done():
-					// Context cancelled while waiting for semaphore
+					// Context canceled while waiting for semaphore
 					results.Store(code, &BidderResult{
 						BidderCode: code,
 						Errors:     []error{ctx.Err()},
@@ -1319,7 +1315,7 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 					case sem <- struct{}{}:
 						defer func() { <-sem }() // Release on completion
 					case <-ctx.Done():
-						// Context cancelled while waiting for semaphore
+						// Context canceled while waiting for semaphore
 						results.Store(code, &BidderResult{
 							BidderCode: code,
 							Errors:     []error{ctx.Err()},
@@ -1398,7 +1394,11 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 	// P0-1: Convert sync.Map to regular map for return
 	finalResults := make(map[string]*BidderResult)
 	results.Range(func(key, value interface{}) bool {
-		finalResults[key.(string)] = value.(*BidderResult)
+		if k, ok := key.(string); ok {
+			if v, ok := value.(*BidderResult); ok {
+				finalResults[k] = v
+			}
+		}
 		return true
 	})
 	return finalResults
@@ -1433,7 +1433,7 @@ func (e *Exchange) cloneRequestWithFPD(req *openrtb.BidRequest, bidderCode strin
 	// Check if FPD will be applied (requires cloning Site/App/User)
 	var fpdData *fpd.ResolvedFPD
 	if bidderFPD != nil {
-		fpdData, _ = bidderFPD[bidderCode]
+		fpdData = bidderFPD[bidderCode]
 	}
 	hasFPD := fpdData != nil && e.fpdProcessor != nil
 
@@ -1457,7 +1457,7 @@ func (e *Exchange) cloneRequestWithFPD(req *openrtb.BidRequest, bidderCode strin
 
 	// Apply FPD if available (now safe since we cloned the affected objects)
 	if hasFPD {
-		e.fpdProcessor.ApplyFPDToRequest(&clone, bidderCode, fpdData)
+		_ = e.fpdProcessor.ApplyFPDToRequest(&clone, bidderCode, fpdData) //nolint:errcheck
 	}
 
 	return &clone
@@ -1720,7 +1720,7 @@ func (e *Exchange) callBidder(ctx context.Context, req *openrtb.BidRequest, bidd
 			resp, err = e.httpClient.Do(ctx, reqData, timeout)
 			if err != nil {
 				// P3-1: Log HTTP request failures with context
-				isTimeout := err == context.DeadlineExceeded || err == context.Canceled
+				isTimeout := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 				logger.Log.Debug().
 					Str("bidder", bidderCode).
 					Str("uri", reqData.URI).
@@ -1815,9 +1815,9 @@ func (e *Exchange) buildBidExtension(vb ValidatedBid) *openrtb.BidExt {
 
 	// Build targeting keys that Prebid.js expects
 	targeting := map[string]string{
-		"hb_pb":     priceBucket,
-		"hb_bidder": displayBidderCode,
-		"hb_size":   fmt.Sprintf("%dx%d", bid.W, bid.H),
+		"hb_pb":                          priceBucket,
+		"hb_bidder":                      displayBidderCode,
+		"hb_size":                        fmt.Sprintf("%dx%d", bid.W, bid.H),
 		"hb_pb_" + displayBidderCode:     priceBucket,
 		"hb_bidder_" + displayBidderCode: displayBidderCode,
 		"hb_size_" + displayBidderCode:   fmt.Sprintf("%dx%d", bid.W, bid.H),

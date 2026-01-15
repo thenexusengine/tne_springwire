@@ -3,6 +3,7 @@ package sovrn
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
@@ -57,4 +58,8 @@ func Info() adapters.BidderInfo {
 	}
 }
 
-func init() { adapters.RegisterAdapter("sovrn", New(""), Info()) }
+func init() {
+	if err := adapters.RegisterAdapter("sovrn", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register sovrn adapter: %v", err))
+	}
+}

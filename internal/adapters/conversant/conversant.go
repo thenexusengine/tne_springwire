@@ -3,6 +3,7 @@ package conversant
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
@@ -58,4 +59,8 @@ func Info() adapters.BidderInfo {
 	}
 }
 
-func init() { adapters.RegisterAdapter("conversant", New(""), Info()) }
+func init() {
+	if err := adapters.RegisterAdapter("conversant", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register conversant adapter: %v", err))
+	}
+}

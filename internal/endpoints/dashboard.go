@@ -13,17 +13,17 @@ import (
 
 // DashboardMetrics holds real-time metrics for the dashboard
 type DashboardMetrics struct {
-	mu                sync.RWMutex
-	TotalAuctions     int64
+	mu                 sync.RWMutex
+	TotalAuctions      int64
 	SuccessfulAuctions int64
-	FailedAuctions    int64
-	TotalBids         int64
-	TotalImpressions  int64
-	RecentAuctions    []AuctionLog
-	BidderStats       map[string]int // Count of wins per bidder
-	AverageDuration   float64
-	LastUpdate        time.Time
-	StartTime         time.Time
+	FailedAuctions     int64
+	TotalBids          int64
+	TotalImpressions   int64
+	RecentAuctions     []AuctionLog
+	BidderStats        map[string]int // Count of wins per bidder
+	AverageDuration    float64
+	LastUpdate         time.Time
+	StartTime          time.Time
 }
 
 // AuctionLog represents a single auction event

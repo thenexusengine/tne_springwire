@@ -73,7 +73,7 @@ func TestCircuitBreakerOpensAfterFailures(t *testing.T) {
 		return nil
 	})
 
-	if err != ErrCircuitOpen {
+	if !errors.Is(err, ErrCircuitOpen) {
 		t.Errorf("expected ErrCircuitOpen, got %v", err)
 	}
 
@@ -195,7 +195,7 @@ func TestCircuitBreakerForceOpen(t *testing.T) {
 		return nil
 	})
 
-	if err != ErrCircuitOpen {
+	if !errors.Is(err, ErrCircuitOpen) {
 		t.Errorf("expected ErrCircuitOpen, got %v", err)
 	}
 }

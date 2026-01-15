@@ -16,13 +16,13 @@ type SizeLimitConfig struct {
 
 // DefaultSizeLimitConfig returns default size limit configuration
 func DefaultSizeLimitConfig() *SizeLimitConfig {
-	maxBody, _ := strconv.ParseInt(os.Getenv("MAX_REQUEST_SIZE"), 10, 64)
-	if maxBody <= 0 {
+	maxBody, err := strconv.ParseInt(os.Getenv("MAX_REQUEST_SIZE"), 10, 64)
+	if err != nil || maxBody <= 0 {
 		maxBody = 1024 * 1024 // Default: 1MB
 	}
 
-	maxURL, _ := strconv.Atoi(os.Getenv("MAX_URL_LENGTH"))
-	if maxURL <= 0 {
+	maxURL, err := strconv.Atoi(os.Getenv("MAX_URL_LENGTH"))
+	if err != nil || maxURL <= 0 {
 		maxURL = 8192 // Default: 8KB
 	}
 

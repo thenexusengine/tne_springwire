@@ -563,8 +563,8 @@ func TestAnonymizeIP_EdgeCases(t *testing.T) {
 func TestPrivacyMiddleware_IPAnonymization(t *testing.T) {
 	// Test that IP addresses are anonymized when GDPR applies
 	config := DefaultPrivacyConfig()
-	config.StrictMode = false       // Don't require specific purpose consents
-	config.AnonymizeIP = true       // Enable IP anonymization
+	config.StrictMode = false // Don't require specific purpose consents
+	config.AnonymizeIP = true // Enable IP anonymization
 	mw := NewPrivacyMiddleware(config)
 
 	var capturedBody []byte

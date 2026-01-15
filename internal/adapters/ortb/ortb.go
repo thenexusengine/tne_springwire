@@ -83,9 +83,9 @@ type RateLimitsConfig struct {
 
 // SChainNodeConfig holds a single supply chain node configuration
 type SChainNodeConfig struct {
-	ASI    string                 `json:"asi"`    // Canonical domain of the SSP/Exchange
-	SID    string                 `json:"sid"`    // Seller ID
-	HP     int                    `json:"hp"`     // Header bidding partner (1=yes, 0=no)
+	ASI    string                 `json:"asi"`              // Canonical domain of the SSP/Exchange
+	SID    string                 `json:"sid"`              // Seller ID
+	HP     int                    `json:"hp"`               // Header bidding partner (1=yes, 0=no)
 	RID    string                 `json:"rid,omitempty"`    // Request ID (optional)
 	Name   string                 `json:"name,omitempty"`   // Entity name (optional)
 	Domain string                 `json:"domain,omitempty"` // Entity domain (optional)
@@ -94,10 +94,10 @@ type SChainNodeConfig struct {
 
 // SChainAugmentConfig holds supply chain augmentation configuration
 type SChainAugmentConfig struct {
-	Enabled  bool               `json:"enabled"`           // Whether augmentation is enabled
-	Nodes    []SChainNodeConfig `json:"nodes"`             // Nodes to append
+	Enabled  bool               `json:"enabled"`            // Whether augmentation is enabled
+	Nodes    []SChainNodeConfig `json:"nodes"`              // Nodes to append
 	Complete *int               `json:"complete,omitempty"` // Override complete flag (nil = preserve)
-	Version  string             `json:"version"`           // SChain version (default "1.0")
+	Version  string             `json:"version"`            // SChain version (default "1.0")
 }
 
 // RequestTransformConfig holds request transformation rules
@@ -179,7 +179,7 @@ func (a *GenericAdapter) MakeRequests(request *openrtb.BidRequest, extraInfo *ad
 	// Marshal request body
 	requestBody, err := json.Marshal(reqCopy)
 	if err != nil {
-		return nil, []error{fmt.Errorf("failed to marshal request: %v", err)}
+		return nil, []error{fmt.Errorf("failed to marshal request: %w", err)}
 	}
 
 	// Build headers
@@ -219,7 +219,7 @@ func (a *GenericAdapter) MakeBids(request *openrtb.BidRequest, responseData *ada
 	// Parse response
 	var bidResp openrtb.BidResponse
 	if err := json.Unmarshal(responseData.Body, &bidResp); err != nil {
-		return nil, []error{fmt.Errorf("failed to parse response from %s: %v", config.BidderCode, err)}
+		return nil, []error{fmt.Errorf("failed to parse response from %s: %w", config.BidderCode, err)}
 	}
 
 	// Build adapter response
@@ -366,7 +366,7 @@ func mergeJSONExt(existing json.RawMessage, additions map[string]interface{}) js
 	// Start with existing data or empty object
 	base := make(map[string]interface{})
 	if len(existing) > 0 {
-		_ = json.Unmarshal(existing, &base)
+		_ = json.Unmarshal(existing, &base) //nolint:errcheck
 	}
 
 	// Merge additions

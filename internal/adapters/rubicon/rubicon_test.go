@@ -141,4 +141,3 @@ func TestInfo(t *testing.T) {
 		t.Fatal("Expected capabilities to be set")
 	}
 }
-

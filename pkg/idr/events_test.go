@@ -80,7 +80,7 @@ func TestRecordBidResponse_BufferFlush(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&payload)
-		
+
 		mu.Lock()
 		if events, ok := payload["events"].([]interface{}); ok {
 			for _, e := range events {
@@ -91,7 +91,7 @@ func TestRecordBidResponse_BufferFlush(t *testing.T) {
 			}
 		}
 		mu.Unlock()
-		
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -185,11 +185,11 @@ func TestFlush_WithEvents(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&payload)
-		
+
 		if events, ok := payload["events"].([]interface{}); ok {
 			eventsReceived = len(events)
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -297,11 +297,11 @@ func TestClose_FlushesRemainingEvents(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&payload)
-		
+
 		if events, ok := payload["events"].([]interface{}); ok {
 			eventsReceived = len(events)
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()

@@ -18,12 +18,12 @@ import (
 
 // PublisherAuthConfig holds publisher authentication configuration
 type PublisherAuthConfig struct {
-	Enabled            bool              // Enable publisher validation
-	AllowUnregistered  bool              // Allow requests without publisher ID (for testing)
-	RegisteredPubs     map[string]string // publisher_id -> allowed domains (comma-separated, empty = any)
-	ValidateDomain     bool              // Validate request domain matches registered domains
-	RateLimitPerPub    int               // Requests per second per publisher (0 = unlimited)
-	UseRedis           bool              // Use Redis for publisher validation
+	Enabled           bool              // Enable publisher validation
+	AllowUnregistered bool              // Allow requests without publisher ID (for testing)
+	RegisteredPubs    map[string]string // publisher_id -> allowed domains (comma-separated, empty = any)
+	ValidateDomain    bool              // Validate request domain matches registered domains
+	RateLimitPerPub   int               // Requests per second per publisher (0 = unlimited)
+	UseRedis          bool              // Use Redis for publisher validation
 }
 
 // DefaultPublisherAuthConfig returns default config

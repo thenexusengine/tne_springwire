@@ -133,16 +133,16 @@ func GetBidType(bid *openrtb.Bid, request *openrtb.BidRequest) BidType {
 // Simple bidders can embed this to reduce boilerplate code.
 // This handles the common pattern of: POST JSON -> Parse JSON response -> Extract bids
 type SimpleAdapter struct {
-	BidderCode    string  // Bidder code for error messages
-	Endpoint      string  // Bidder endpoint URL
+	BidderCode     string  // Bidder code for error messages
+	Endpoint       string  // Bidder endpoint URL
 	DefaultBidType BidType // Default bid type if can't be determined from impression
 }
 
 // NewSimpleAdapter creates a new SimpleAdapter with the given configuration
 func NewSimpleAdapter(bidderCode, endpoint string, defaultBidType BidType) *SimpleAdapter {
 	return &SimpleAdapter{
-		BidderCode:    bidderCode,
-		Endpoint:      endpoint,
+		BidderCode:     bidderCode,
+		Endpoint:       endpoint,
 		DefaultBidType: defaultBidType,
 	}
 }

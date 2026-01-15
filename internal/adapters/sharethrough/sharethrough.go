@@ -3,6 +3,7 @@ package sharethrough
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
@@ -57,4 +58,8 @@ func Info() adapters.BidderInfo {
 	}
 }
 
-func init() { adapters.RegisterAdapter("sharethrough", New(""), Info()) }
+func init() {
+	if err := adapters.RegisterAdapter("sharethrough", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register sharethrough adapter: %v", err))
+	}
+}

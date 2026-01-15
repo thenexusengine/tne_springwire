@@ -59,7 +59,10 @@ func NewGzip(config *GzipConfig) *Gzip {
 		config: config,
 		writerPool: sync.Pool{
 			New: func() interface{} {
-				w, _ := gzip.NewWriterLevel(io.Discard, level)
+				w, err := gzip.NewWriterLevel(io.Discard, level)
+				if err != nil {
+					return nil
+				}
 				return w
 			},
 		},
@@ -70,14 +73,13 @@ func NewGzip(config *GzipConfig) *Gzip {
 // It buffers the response to decide whether to compress based on size
 type gzipResponseWriter struct {
 	http.ResponseWriter
-	gzipWriter   *gzip.Writer
-	config       *GzipConfig
-	writerPool   *sync.Pool
-	buffer       bytes.Buffer
-	wroteHeader  bool
-	headerCode   int
-	shouldGzip   bool
-	decisionMade bool
+	gzipWriter  *gzip.Writer
+	config      *GzipConfig
+	writerPool  *sync.Pool
+	buffer      bytes.Buffer
+	wroteHeader bool
+	headerCode  int
+	shouldGzip  bool
 }
 
 // Header returns the header map
@@ -203,7 +205,12 @@ func (g *Gzip) Middleware(next http.Handler) http.Handler {
 		}
 
 		// Get a gzip writer from pool
-		gzipWriter := g.writerPool.Get().(*gzip.Writer)
+		poolWriter := g.writerPool.Get()
+		gzipWriter, ok := poolWriter.(*gzip.Writer)
+		if !ok || gzipWriter == nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
 
 		grw := &gzipResponseWriter{
 			ResponseWriter: w,

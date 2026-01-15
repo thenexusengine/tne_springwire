@@ -3,6 +3,7 @@ package smartadserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
@@ -58,4 +59,8 @@ func Info() adapters.BidderInfo {
 	}
 }
 
-func init() { adapters.RegisterAdapter("smartadserver", New(""), Info()) }
+func init() {
+	if err := adapters.RegisterAdapter("smartadserver", New(""), Info()); err != nil {
+		panic(fmt.Sprintf("failed to register smartadserver adapter: %v", err))
+	}
+}

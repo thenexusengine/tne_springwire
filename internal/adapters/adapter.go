@@ -4,6 +4,7 @@ package adapters
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -244,7 +245,7 @@ func (c *DefaultHTTPClient) Do(ctx context.Context, req *RequestData, timeout ti
 		httpReq.Header[k] = v
 	}
 
-	resp, err := c.client.Do(httpReq)
+	resp, err := c.client.Do(httpReq) //nolint:bodyclose
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +275,7 @@ func (c *DefaultHTTPClient) Do(ctx context.Context, req *RequestData, timeout ti
 		// P1-NEW-2: Drain channel and log any unexpected errors for debugging
 		// This helps diagnose bidder issues that occur during timeout/cancellation
 		result := <-readCh
-		if result.err != nil && result.err != io.EOF {
+		if result.err != nil && !errors.Is(result.err, io.EOF) {
 			// Log non-EOF errors that occurred during cancellation for debugging
 			// These are typically network errors masked by the context cancellation
 			logger.Log.Debug().
