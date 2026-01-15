@@ -80,7 +80,6 @@ type gzipResponseWriter struct {
 	wroteHeader  bool
 	headerCode   int
 	shouldGzip   bool
-	decisionMade bool
 }
 
 // Header returns the header map

@@ -203,6 +203,17 @@ func (h *CookieSyncHandler) getBiddersToSync(req CookieSyncRequest, cookie *user
 		bidders = []string{"appnexus", "rubicon", "pubmatic", "openx", "triplelift"}
 	}
 
+	// Filter out bidders that already have UIDs (optimization to avoid redundant syncs)
+	if cookie != nil {
+		needsSync := make([]string, 0, len(bidders))
+		for _, bidder := range bidders {
+			if !cookie.HasUID(bidder) {
+				needsSync = append(needsSync, bidder)
+			}
+		}
+		return needsSync
+	}
+
 	return bidders
 }
 

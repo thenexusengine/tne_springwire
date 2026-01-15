@@ -1216,11 +1216,6 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 	return response, nil
 }
 
-// callBidders calls all selected bidders in parallel (legacy, without FPD)
-func (e *Exchange) callBidders(ctx context.Context, req *openrtb.BidRequest, bidders []string, timeout time.Duration) map[string]*BidderResult {
-	return e.callBiddersWithFPD(ctx, req, bidders, timeout, nil)
-}
-
 // callBiddersWithFPD calls all selected bidders in parallel with FPD support
 // P0-1: Uses sync.Map for thread-safe result collection
 // P0-4: Uses semaphore to limit concurrent bidder goroutines

@@ -280,14 +280,6 @@ func (d *IVTDetector) checkUserAgentWithConfig(r *http.Request, result *IVTResul
 	}
 }
 
-// checkUserAgent validates user agent patterns (legacy wrapper)
-func (d *IVTDetector) checkUserAgent(r *http.Request, result *IVTResult) {
-	d.mu.RLock()
-	cfg := *d.config
-	d.mu.RUnlock()
-	d.checkUserAgentWithConfig(r, result, &cfg)
-}
-
 // checkRefererWithConfig validates referer against domain using snapshotted config
 func (d *IVTDetector) checkRefererWithConfig(r *http.Request, domain string, result *IVTResult, cfg *IVTConfig) {
 	if !cfg.CheckReferer {
@@ -324,39 +316,43 @@ func (d *IVTDetector) checkRefererWithConfig(r *http.Request, domain string, res
 	}
 }
 
-// checkReferer validates referer against domain (legacy wrapper)
-func (d *IVTDetector) checkReferer(r *http.Request, domain string, result *IVTResult) {
-	d.mu.RLock()
-	cfg := *d.config
-	d.mu.RUnlock()
-	d.checkRefererWithConfig(r, domain, result, &cfg)
-}
-
 // checkGeoWithConfig validates geographic restrictions using snapshotted config
+//
+//nolint:unparam // result will be used when GeoIP lookup is implemented
 func (d *IVTDetector) checkGeoWithConfig(r *http.Request, result *IVTResult, cfg *IVTConfig) {
 	if !cfg.CheckGeo {
 		return
 	}
 
+	// Extract client IP for future GeoIP lookup
+	clientIP := getClientIP(r)
+	if clientIP == "" {
+		return
+	}
+
 	// TODO: Implement GeoIP lookup
 	// This requires a GeoIP database (MaxMind, IP2Location, etc.)
-	// For now, this is a placeholder
+	// When implemented:
+	// country := geoip.Lookup(clientIP)
+	// if len(cfg.AllowedCountries) > 0 && !contains(cfg.AllowedCountries, country) {
+	//     result.Signals = append(result.Signals, IVTSignal{
+	//         Type:        "geo_restricted",
+	//         Severity:    "high",
+	//         Description: fmt.Sprintf("country %s not in allowed list", country),
+	//         DetectedAt:  time.Now(),
+	//     })
+	// }
+	// if len(cfg.BlockedCountries) > 0 && contains(cfg.BlockedCountries, country) {
+	//     result.Signals = append(result.Signals, IVTSignal{
+	//         Type:        "geo_blocked",
+	//         Severity:    "high",
+	//         Description: fmt.Sprintf("country %s is blocked", country),
+	//         DetectedAt:  time.Now(),
+	//     })
+	// }
+
 	_ = cfg.AllowedCountries
 	_ = cfg.BlockedCountries
-
-	// Example:
-	// country := geoip.Lookup(getClientIP(r))
-	// if len(cfg.AllowedCountries) > 0 && !contains(cfg.AllowedCountries, country) {
-	//     result.Signals = append(result.Signals, IVTSignal{...})
-	// }
-}
-
-// checkGeo validates geographic restrictions (legacy wrapper)
-func (d *IVTDetector) checkGeo(r *http.Request, result *IVTResult) {
-	d.mu.RLock()
-	cfg := *d.config
-	d.mu.RUnlock()
-	d.checkGeoWithConfig(r, result, &cfg)
 }
 
 // calculateScore computes IVT score from signals
