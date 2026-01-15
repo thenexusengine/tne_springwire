@@ -16,9 +16,9 @@ import (
 )
 
 // IVTConfig holds Invalid Traffic detection configuration
+// Note: This struct should not contain a mutex as it may be copied by value.
+// Synchronization is handled by IVTDetector.mu
 type IVTConfig struct {
-	mu sync.RWMutex // Protects config reads/writes
-
 	MonitoringEnabled    bool     // Enable IVT detection, logging, and metrics
 	BlockingEnabled      bool     // Block high-score traffic (requires MonitoringEnabled)
 	CheckUserAgent       bool     // Validate user agent patterns
@@ -185,9 +185,9 @@ func NewIVTDetector(config *IVTConfig) *IVTDetector {
 // compilePatterns compiles regex patterns once for performance
 func (d *IVTDetector) compilePatterns() {
 	d.patternsOnce.Do(func() {
-		d.config.mu.RLock()
+		d.mu.RLock()
 		patterns := d.config.SuspiciousUAPatterns
-		d.config.mu.RUnlock()
+		d.mu.RUnlock()
 
 		d.uaPatterns = make([]*regexp.Regexp, 0, len(patterns))
 		for _, pattern := range patterns {
