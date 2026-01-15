@@ -505,7 +505,9 @@ func TestCookieSyncHandler_SetsCookie(t *testing.T) {
 
 	handler.ServeHTTP(w, req)
 
-	cookies := w.Result().Cookies()
+	result := w.Result()
+	defer result.Body.Close()
+	cookies := result.Cookies()
 	found := false
 	for _, cookie := range cookies {
 		if cookie.Name == usersync.CookieName {

@@ -1677,9 +1677,6 @@ func TestSortBidsByPrice_NilBids(t *testing.T) {
 	sortBidsByPrice(bids)
 
 	// Valid bids should still be sorted (nil handling prevents crash)
-	if bids[0].Bid != nil && bids[0].Bid.Bid != nil && bids[0].Bid.Bid.Price != 5.00 {
-		// Due to nil handling, exact order may vary, but it shouldn't crash
-	}
 }
 
 func TestSortBidsByPrice_Empty(t *testing.T) {

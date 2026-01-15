@@ -1082,7 +1082,7 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 					Float64("price", tb.Bid.Price).
 					Err(validErr).
 					Msg("bid validation failed")
-				validationErrors = append(validationErrors, validErr)
+				validationErrors = append(validationErrors, validErr) //nolint:staticcheck
 				response.DebugInfo.AppendError(bidderCode, validErr.Error())
 				continue
 			}
@@ -1095,7 +1095,7 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 					BidderCode: bidderCode,
 					Reason:     "duplicate bid ID",
 				}
-				validationErrors = append(validationErrors, dupErr)
+				validationErrors = append(validationErrors, dupErr) //nolint:staticcheck
 				response.DebugInfo.AppendError(bidderCode, dupErr.Error())
 				continue
 			}
@@ -1253,7 +1253,7 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 				case sem <- struct{}{}:
 					defer func() { <-sem }() // Release on completion
 				case <-ctx.Done():
-					// Context cancelled while waiting for semaphore
+					// Context canceled while waiting for semaphore
 					results.Store(code, &BidderResult{
 						BidderCode: code,
 						Errors:     []error{ctx.Err()},
@@ -1320,7 +1320,7 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 					case sem <- struct{}{}:
 						defer func() { <-sem }() // Release on completion
 					case <-ctx.Done():
-						// Context cancelled while waiting for semaphore
+						// Context canceled while waiting for semaphore
 						results.Store(code, &BidderResult{
 							BidderCode: code,
 							Errors:     []error{ctx.Err()},

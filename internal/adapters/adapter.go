@@ -245,7 +245,7 @@ func (c *DefaultHTTPClient) Do(ctx context.Context, req *RequestData, timeout ti
 		httpReq.Header[k] = v
 	}
 
-	resp, err := c.client.Do(httpReq)
+	resp, err := c.client.Do(httpReq) //nolint:bodyclose
 	if err != nil {
 		return nil, err
 	}
