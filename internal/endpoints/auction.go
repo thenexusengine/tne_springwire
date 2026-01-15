@@ -51,14 +51,16 @@ func (h *AuctionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Parse OpenRTB request
 	var bidRequest openrtb.BidRequest
-	if err := json.Unmarshal(body, &bidRequest); err != nil {
+	err = json.Unmarshal(body, &bidRequest)
+	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Invalid JSON in bid request")
 		writeError(w, "Invalid JSON in request body", http.StatusBadRequest)
 		return
 	}
 
 	// Validate request
-	if err := validateBidRequest(&bidRequest); err != nil {
+	err = validateBidRequest(&bidRequest)
+	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}

@@ -71,7 +71,9 @@ func TestSetUIDHandler_ValidUID(t *testing.T) {
 	}
 
 	// Check cookie was set
-	cookies := w.Result().Cookies()
+	result := w.Result()
+	defer result.Body.Close()
+	cookies := result.Cookies()
 	if len(cookies) == 0 {
 		t.Fatal("Expected cookie to be set")
 	}
@@ -101,7 +103,9 @@ func TestSetUIDHandler_EmptyUID(t *testing.T) {
 	handler.ServeHTTP(w1, req1)
 
 	// Get the cookie from first request
-	cookie1 := w1.Result().Cookies()[0]
+	result1 := w1.Result()
+	defer result1.Body.Close()
+	cookie1 := result1.Cookies()[0]
 
 	// Now send empty UID to delete it
 	req2 := httptest.NewRequest("GET", "/setuid?bidder=appnexus&uid=", nil)
@@ -331,7 +335,9 @@ func TestOptOutHandler_SetsOptOut(t *testing.T) {
 	}
 
 	// Check cookie was set with opt-out
-	cookies := w.Result().Cookies()
+	result := w.Result()
+	defer result.Body.Close()
+	cookies := result.Cookies()
 	if len(cookies) == 0 {
 		t.Fatal("Expected cookie to be set")
 	}
@@ -400,7 +406,9 @@ func TestOptOutHandler_PreservesExistingUIDs(t *testing.T) {
 	}
 
 	// Cookie should have opt-out set
-	cookies := w.Result().Cookies()
+	result := w.Result()
+	defer result.Body.Close()
+	cookies := result.Cookies()
 	if len(cookies) == 0 {
 		t.Fatal("Expected cookie to be set")
 	}
@@ -421,7 +429,9 @@ func TestOptOutHandler_DomainWithPort(t *testing.T) {
 
 	handler.ServeHTTP(w, req)
 
-	cookies := w.Result().Cookies()
+	result := w.Result()
+	defer result.Body.Close()
+	cookies := result.Cookies()
 	if len(cookies) == 0 {
 		t.Fatal("Expected cookie to be set")
 	}

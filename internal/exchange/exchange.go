@@ -1438,7 +1438,7 @@ func (e *Exchange) cloneRequestWithFPD(req *openrtb.BidRequest, bidderCode strin
 	// Check if FPD will be applied (requires cloning Site/App/User)
 	var fpdData *fpd.ResolvedFPD
 	if bidderFPD != nil {
-		fpdData, _ = bidderFPD[bidderCode]
+		fpdData = bidderFPD[bidderCode]
 	}
 	hasFPD := fpdData != nil && e.fpdProcessor != nil
 

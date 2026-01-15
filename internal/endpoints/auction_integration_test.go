@@ -1,6 +1,4 @@
-// +build integration
 //go:build integration
-// +build integration
 
 package endpoints
 
