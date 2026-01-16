@@ -567,3 +567,8 @@ func PublisherFromContext(ctx context.Context) interface{} {
 	}
 	return nil
 }
+
+// NewContextWithPublisher creates a new context with the publisher set (for testing)
+func NewContextWithPublisher(ctx context.Context, publisher interface{}) context.Context {
+	return context.WithValue(ctx, publisherContextKey, publisher)
+}
