@@ -1,13 +1,13 @@
 # Test Coverage Status
 
-Last updated: 2026-01-15
+Last updated: 2026-01-16
 
 ## Overall Summary
 
 **Total Packages:** 38
-**Well-Tested (>80%):** 27 packages
-**Moderately Tested (60-80%):** 5 packages
-**Needs Tests (0-60%):** 6 packages
+**Well-Tested (>80%):** 29 packages ⬆️ (+2)
+**Moderately Tested (60-80%):** 6 packages ⬆️ (+1)
+**Needs Tests (0-60%):** 3 packages ⬇️ (-3)
 
 ## Coverage Breakdown
 
@@ -15,6 +15,7 @@ Last updated: 2026-01-15
 
 | Package | Coverage | Test File |
 |---------|----------|-----------|
+| `pkg/redis` | 97.1% ✨ | `client_test.go` |
 | `internal/adapters/ortb` | 93.8% | `ortb_test.go` |
 | `internal/adapters/criteo` | 92.0% | `criteo_test.go` |
 | `internal/adapters/triplelift` | 92.0% | `triplelift_test.go` |
@@ -35,6 +36,7 @@ Last updated: 2026-01-15
 
 | Package | Coverage | Test File |
 |---------|----------|-----------|
+| `internal/endpoints` | 86.9% ✨ | `auction_test.go`, `dashboard_test.go`, `publisher_admin_test.go`, `setuid_test.go`, `cookie_sync_test.go` |
 | `internal/adapters/demo` | 86.7% | `demo/demo_test.go` |
 | `pkg/idr` | 85.2% | `idr/client_test.go`, `events_test.go`, `circuitbreaker_test.go` |
 | `internal/adapters/ix` | 85.2% | `ix_test.go` |
@@ -56,21 +58,19 @@ Last updated: 2026-01-15
 | `internal/adapters` | 74.5% | `adapter_test.go` | Test error paths |
 | `internal/metrics` | 72.5% | `prometheus_test.go` | Test metric edge cases |
 
-### 🔴 Low Coverage (60-70%)
+### 🔴 Low Coverage (50-70%)
 
 | Package | Coverage | Test File | Priority |
 |---------|----------|-----------|----------|
-| `internal/exchange` | 63.3% | `exchange_test.go` | **HIGH** - Core auction logic |
-| `internal/endpoints` | 57.2% | `auction_test.go`, `setuid_test.go`, `cookie_sync_test.go` | **HIGH** - API endpoints |
+| `internal/exchange` | 65.7% | `exchange_test.go`, `exchange_coverage_test.go` ✨ | **HIGH** - Core auction logic (needs 80%+) |
+| `internal/storage` | 56.7% ✨ | `bidders_test.go`, `publishers_test.go` | **MEDIUM** - CRUD operations need full coverage |
 
 ### ❌ No Coverage (0%)
 
 | Package | Files | Why No Tests? |
 |---------|-------|---------------|
 | `cmd/server` | `main.go` | Main entry point - integration tested manually |
-| `internal/storage` | `bidders.go`, `publishers.go` | **NEEDS TESTS** - Database operations |
 | `pkg/logger` | `logger.go` | Simple wrapper - low priority |
-| `pkg/redis` | `client.go` | **NEEDS TESTS** - Redis operations |
 | `internal/config` | `constants.go` | Constants only - no logic |
 | `scripts` | N/A | Shell scripts - not Go tests |
 
@@ -181,6 +181,37 @@ Last updated: 2026-01-15
 
 ## Recent Test Additions
 
+### ✨ Endpoints Package Testing (2026-01-16)
+- Added `internal/endpoints/dashboard_test.go` (12 tests)
+  - LogAuction edge cases and concurrent safety
+  - Dashboard HTML rendering
+  - Metrics JSON API
+- Added `internal/endpoints/publisher_admin_test.go` (25 tests)
+  - Full CRUD operations for publishers
+  - Redis integration with miniredis
+  - Path parsing and routing
+- **Coverage improved: 57.2% → 86.9%** ✅
+
+### ✨ Storage & Redis Testing (2026-01-16)
+- Added `internal/storage/bidders_test.go` (11 tests)
+  - GetByCode, ListActive, GetForPublisher
+  - Database mocking with go-sqlmock
+- Added `internal/storage/publishers_test.go` (24 tests)
+  - Full publisher CRUD operations
+  - Bidder parameter management
+- Added `pkg/redis/client_test.go` (25 tests)
+  - All Redis operations (HGet, HSet, HDel, SMembers, Ping)
+  - In-memory testing with miniredis
+- **Redis coverage: 0% → 97.1%** ✅
+- **Storage coverage: 0% → 56.7%** (partial - CRUD functions need more tests)
+
+### ✨ Exchange Package Testing (2026-01-16)
+- Added `internal/exchange/exchange_coverage_test.go` (9 tests)
+  - Demand type detection
+  - Bid floor map building
+  - Bid extension creation
+- **Coverage improved: 63.3% → 65.7%**
+
 ### ✨ GeoIP Testing (2026-01-15)
 - Added `internal/middleware/ivt_detector_geoip_test.go`
 - 19 comprehensive test cases
@@ -218,15 +249,23 @@ go test ./tests/integration/... -tags=integration
 
 ## Coverage Goals
 
-- **Current Overall:** ~72% (weighted by package size)
+- **Current Overall:** ~76% (weighted by package size) ⬆️
 - **Target Overall:** 80%
 - **Critical Packages:** 80%+ each
 - **Adapter Packages:** 85%+ each (already achieved ✅)
+- **Endpoints Package:** 86.9% (achieved ✅)
+- **Redis Package:** 97.1% (achieved ✅)
 
 ## Notes
 
 - Coverage files (`coverage.out`, `*.coverprofile`) are in `.gitignore`
-- Adapter packages have excellent coverage (83-94%)
-- Core business logic (exchange, endpoints) needs improvement
-- Database and Redis packages need tests from scratch
-- GeoIP functionality now fully tested ✅
+- Adapter packages have excellent coverage (83-94%) ✅
+- Endpoints package now at 86.9% ✅ (was 57.2%)
+- Redis package now at 97.1% ✅ (was 0%)
+- Storage package at 56.7% (was 0%) - still needs full CRUD coverage
+- Exchange package at 65.7% (was 63.3%) - needs more work to reach 80%
+- GeoIP functionality fully tested ✅
+
+### Still Needs Work
+- **internal/storage**: Missing tests for List, Create, Update, Delete, SetEnabled, GetCapabilities in bidders.go
+- **internal/exchange**: Core auction logic needs comprehensive test coverage to reach 80%
