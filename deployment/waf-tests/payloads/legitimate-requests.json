@@ -1,0 +1,228 @@
+{
+  "test_cases": [
+    {
+      "name": "Basic Banner Request",
+      "description": "Simple OpenRTB 2.5 banner request",
+      "expected": "200 OK",
+      "payload": {
+        "id": "test-request-001",
+        "imp": [
+          {
+            "id": "1",
+            "banner": {
+              "w": 300,
+              "h": 250,
+              "pos": 1,
+              "format": [
+                {"w": 300, "h": 250},
+                {"w": 728, "h": 90}
+              ]
+            },
+            "bidfloor": 0.50,
+            "bidfloorcur": "USD"
+          }
+        ],
+        "site": {
+          "id": "site123",
+          "name": "Example Site",
+          "domain": "example.com",
+          "cat": ["IAB1"],
+          "page": "https://example.com/page",
+          "publisher": {
+            "id": "pub-12345",
+            "name": "Example Publisher"
+          }
+        },
+        "device": {
+          "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "ip": "192.168.1.100",
+          "devicetype": 2,
+          "geo": {
+            "country": "USA",
+            "region": "CA",
+            "city": "San Francisco"
+          }
+        },
+        "user": {
+          "id": "user-abc123",
+          "buyeruid": "buyer-xyz789"
+        },
+        "at": 1,
+        "tmax": 120,
+        "cur": ["USD"],
+        "bcat": ["IAB25", "IAB26"]
+      }
+    },
+    {
+      "name": "Video Request with Multiple Impressions",
+      "description": "OpenRTB video request with 3 impressions",
+      "expected": "200 OK",
+      "payload": {
+        "id": "test-request-002",
+        "imp": [
+          {
+            "id": "imp1",
+            "video": {
+              "mimes": ["video/mp4", "video/x-flv"],
+              "minduration": 5,
+              "maxduration": 30,
+              "protocols": [2, 3, 5, 6],
+              "w": 640,
+              "h": 480,
+              "startdelay": 0,
+              "linearity": 1,
+              "api": [1, 2]
+            },
+            "bidfloor": 2.00
+          },
+          {
+            "id": "imp2",
+            "video": {
+              "mimes": ["video/mp4"],
+              "minduration": 15,
+              "maxduration": 30,
+              "w": 1920,
+              "h": 1080
+            },
+            "bidfloor": 3.50
+          },
+          {
+            "id": "imp3",
+            "banner": {
+              "w": 728,
+              "h": 90
+            },
+            "bidfloor": 0.75
+          }
+        ],
+        "site": {
+          "domain": "videosite.com",
+          "publisher": {
+            "id": "pub-video-123"
+          }
+        },
+        "device": {
+          "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)",
+          "ip": "10.0.0.1",
+          "devicetype": 1
+        }
+      }
+    },
+    {
+      "name": "Native Ad Request",
+      "description": "OpenRTB native ad request",
+      "expected": "200 OK",
+      "payload": {
+        "id": "test-request-003",
+        "imp": [
+          {
+            "id": "1",
+            "native": {
+              "request": "{\"ver\":\"1.2\",\"assets\":[{\"id\":1,\"required\":1,\"title\":{\"len\":90}},{\"id\":2,\"required\":1,\"img\":{\"type\":3,\"w\":300,\"h\":250}},{\"id\":3,\"required\":0,\"data\":{\"type\":2,\"len\":140}}]}",
+              "ver": "1.2"
+            },
+            "bidfloor": 1.25
+          }
+        ],
+        "app": {
+          "id": "app-native-123",
+          "name": "News App",
+          "bundle": "com.example.news",
+          "storeurl": "https://play.google.com/store/apps/details?id=com.example.news",
+          "cat": ["IAB12"],
+          "publisher": {
+            "id": "pub-app-456"
+          }
+        },
+        "device": {
+          "ua": "Mozilla/5.0 (Linux; Android 11)",
+          "ip": "172.16.0.1",
+          "devicetype": 4,
+          "make": "Samsung",
+          "model": "Galaxy S21"
+        }
+      }
+    },
+    {
+      "name": "Large Request with Many Impressions",
+      "description": "Request with 20 impressions (within limits)",
+      "expected": "200 OK",
+      "payload": {
+        "id": "test-request-004",
+        "imp": [
+          {"id": "imp1", "banner": {"w": 300, "h": 250}, "bidfloor": 0.5},
+          {"id": "imp2", "banner": {"w": 728, "h": 90}, "bidfloor": 0.8},
+          {"id": "imp3", "banner": {"w": 160, "h": 600}, "bidfloor": 0.6},
+          {"id": "imp4", "banner": {"w": 300, "h": 600}, "bidfloor": 1.2},
+          {"id": "imp5", "banner": {"w": 970, "h": 250}, "bidfloor": 1.5},
+          {"id": "imp6", "banner": {"w": 320, "h": 50}, "bidfloor": 0.3},
+          {"id": "imp7", "banner": {"w": 300, "h": 250}, "bidfloor": 0.5},
+          {"id": "imp8", "banner": {"w": 728, "h": 90}, "bidfloor": 0.8},
+          {"id": "imp9", "banner": {"w": 160, "h": 600}, "bidfloor": 0.6},
+          {"id": "imp10", "banner": {"w": 300, "h": 600}, "bidfloor": 1.2},
+          {"id": "imp11", "banner": {"w": 970, "h": 250}, "bidfloor": 1.5},
+          {"id": "imp12", "banner": {"w": 320, "h": 50}, "bidfloor": 0.3},
+          {"id": "imp13", "banner": {"w": 300, "h": 250}, "bidfloor": 0.5},
+          {"id": "imp14", "banner": {"w": 728, "h": 90}, "bidfloor": 0.8},
+          {"id": "imp15", "banner": {"w": 160, "h": 600}, "bidfloor": 0.6},
+          {"id": "imp16", "banner": {"w": 300, "h": 600}, "bidfloor": 1.2},
+          {"id": "imp17", "banner": {"w": 970, "h": 250}, "bidfloor": 1.5},
+          {"id": "imp18", "banner": {"w": 320, "h": 50}, "bidfloor": 0.3},
+          {"id": "imp19", "banner": {"w": 300, "h": 250}, "bidfloor": 0.5},
+          {"id": "imp20", "banner": {"w": 728, "h": 90}, "bidfloor": 0.8}
+        ],
+        "site": {
+          "domain": "multisite.com",
+          "publisher": {
+            "id": "pub-multi-789"
+          }
+        },
+        "device": {
+          "ip": "203.0.113.1"
+        }
+      }
+    },
+    {
+      "name": "Request with First Party Data",
+      "description": "OpenRTB with user data and segments",
+      "expected": "200 OK",
+      "payload": {
+        "id": "test-request-005",
+        "imp": [
+          {
+            "id": "1",
+            "banner": {
+              "w": 300,
+              "h": 250
+            }
+          }
+        ],
+        "site": {
+          "domain": "datasite.com",
+          "publisher": {
+            "id": "pub-data-123"
+          }
+        },
+        "user": {
+          "id": "user-with-data",
+          "yob": 1985,
+          "gender": "M",
+          "data": [
+            {
+              "id": "segment-provider-1",
+              "name": "Segment Provider",
+              "segment": [
+                {"id": "seg1", "value": "interest-sports"},
+                {"id": "seg2", "value": "interest-tech"},
+                {"id": "seg3", "value": "demographic-male-30-40"}
+              ]
+            }
+          ]
+        },
+        "device": {
+          "ip": "198.51.100.1"
+        }
+      }
+    }
+  ]
+}

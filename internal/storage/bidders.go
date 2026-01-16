@@ -331,13 +331,19 @@ func (s *BidderStore) Create(ctx context.Context, b *Bidder) error {
 		return fmt.Errorf("failed to marshal http_headers: %w", err)
 	}
 
+	// Default status to 'active' if not set to prevent DB constraint violation
+	status := b.Status
+	if status == "" {
+		status = "active"
+	}
+
 	err = s.db.QueryRowContext(ctx, query,
 		b.BidderCode,
 		b.BidderName,
 		b.EndpointURL,
 		b.TimeoutMs,
 		b.Enabled,
-		b.Status,
+		status,
 		b.SupportsBanner,
 		b.SupportsVideo,
 		b.SupportsNative,

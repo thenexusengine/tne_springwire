@@ -1218,22 +1218,6 @@ func TestExchange_Close(t *testing.T) {
 	}
 }
 
-func TestExchange_DynamicRegistry(t *testing.T) {
-	registry := adapters.NewRegistry()
-	ex := New(registry, nil)
-
-	// Initially nil
-	if ex.GetDynamicRegistry() != nil {
-		t.Error("expected nil dynamic registry initially")
-	}
-
-	// Set and get
-	ex.SetDynamicRegistry(nil)
-	if ex.GetDynamicRegistry() != nil {
-		t.Error("expected nil after setting nil")
-	}
-}
-
 func TestExchange_GetIDRClient(t *testing.T) {
 	registry := adapters.NewRegistry()
 

@@ -1,0 +1,23 @@
+╔══════════════════════════════════════════════════════════════╗
+║      ModSecurity WAF Test Suite - Comprehensive Report      ║
+╚══════════════════════════════════════════════════════════════╝
+
+Test Run: 20260116_133600
+WAF URL: http://localhost:8000
+
+[1;33m[1/6] Checking WAF availability...[0m
+[0;32m✓ WAF is running[0m
+
+[1;33m[2/6] Testing Legitimate OpenRTB Requests...[0m
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOTE: Testing without registered publishers - expecting 403 for publisher auth
+These are legitimate OpenRTB requests that would pass with valid publisher IDs
+
+[0;32m✓ PASS[0m - Basic Banner Request (expect publisher auth block)
+[0;32m✓ PASS[0m - Video Request with Multiple Impressions (expect publisher auth block)
+[0;32m✓ PASS[0m - Native Ad Request (expect publisher auth block)
+[0;32m✓ PASS[0m - Large Request with Many Impressions (expect publisher auth block)
+[0;32m✓ PASS[0m - Request with First Party Data (expect publisher auth block)
+
+[1;33m[3/6] Testing Attack Detection...[0m
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

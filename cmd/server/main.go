@@ -16,7 +16,6 @@ import (
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
 	_ "github.com/thenexusengine/tne_springwire/internal/adapters/appnexus"
 	_ "github.com/thenexusengine/tne_springwire/internal/adapters/demo"
-	"github.com/thenexusengine/tne_springwire/internal/adapters/ortb"
 	_ "github.com/thenexusengine/tne_springwire/internal/adapters/pubmatic"
 	_ "github.com/thenexusengine/tne_springwire/internal/adapters/rubicon"
 	pbsconfig "github.com/thenexusengine/tne_springwire/internal/config"
@@ -143,15 +142,15 @@ func main() {
 	currencyConvEnabled := os.Getenv("CURRENCY_CONVERSION_ENABLED") != "false"
 	idrAPIKey := os.Getenv("IDR_API_KEY")
 	config := &exchange.Config{
-		DefaultTimeout:     *timeout,
-		MaxBidders:         50,
-		IDREnabled:         *idrEnabled,
-		IDRServiceURL:      *idrURL,
-		IDRAPIKey:          idrAPIKey,
-		EventRecordEnabled: true,
-		EventBufferSize:    100,
-		CurrencyConv:       currencyConvEnabled,
-		DefaultCurrency:    "USD",
+		DefaultTimeout:        *timeout,
+		MaxBidders:            50,
+		IDREnabled:            *idrEnabled,
+		IDRServiceURL:         *idrURL,
+		IDRAPIKey:             idrAPIKey,
+		EventRecordEnabled:    true,
+		EventBufferSize:       100,
+		CurrencyConv:          currencyConvEnabled,
+		DefaultCurrency:       "USD",
 	}
 
 	// Create exchange with default registry
@@ -161,33 +160,22 @@ func main() {
 	ex.SetMetrics(m)
 	log.Info().Msg("Metrics connected to exchange for margin tracking")
 
-	// Initialize dynamic registry if Redis is available
-	var dynamicRegistry *ortb.DynamicRegistry
+	// Redis is used for API key auth and publisher admin (not dynamic bidders).
 	var redisClient *redis.Client
 	redisURL := os.Getenv("REDIS_URL")
 	if redisURL != "" {
 		var err error
 		redisClient, err = redis.New(redisURL)
 		if err != nil {
-			log.Warn().Err(err).Msg("Failed to connect to Redis, dynamic bidders disabled")
+			log.Warn().Err(err).Msg("Failed to connect to Redis")
 		} else {
 			// Set Redis client on auth middlewares for shared validation
 			auth.SetRedisClient(redisClient)
 			publisherAuth.SetRedisClient(redisClient)
 			log.Info().Msg("Redis client set for auth middlewares")
-
-			dynamicRegistry = ortb.NewDynamicRegistry(redisClient, 30*time.Second)
-			if err := dynamicRegistry.Start(context.Background()); err != nil {
-				log.Warn().Err(err).Msg("Failed to start dynamic registry")
-			} else {
-				ex.SetDynamicRegistry(dynamicRegistry)
-				log.Info().
-					Int("dynamic_bidders", dynamicRegistry.Count()).
-					Msg("Dynamic bidder registry initialized")
-			}
 		}
 	} else {
-		log.Info().Msg("REDIS_URL not set, dynamic bidders disabled")
+		log.Info().Msg("REDIS_URL not set, Redis-backed features disabled")
 	}
 
 	// List registered bidders
@@ -200,13 +188,8 @@ func main() {
 	// Create handlers
 	auctionHandler := endpoints.NewAuctionHandler(ex)
 	statusHandler := endpoints.NewStatusHandler()
-	// Use dynamic handler that queries registries at request time
-	// Note: Pass nil explicitly if dynamicRegistry is nil to avoid typed-nil interface issues
-	var dynamicBidderLister endpoints.DynamicBidderLister
-	if dynamicRegistry != nil {
-		dynamicBidderLister = dynamicRegistry
-	}
-	biddersHandler := endpoints.NewDynamicInfoBiddersHandler(adapters.DefaultRegistry, dynamicBidderLister)
+	// Static bidders only (no dynamic registry).
+	biddersHandler := endpoints.NewDynamicInfoBiddersHandler(adapters.DefaultRegistry)
 
 	// Cookie sync handlers
 	hostURL := os.Getenv("PBS_HOST_URL")
@@ -324,12 +307,6 @@ func main() {
 
 	// Stop rate limiter cleanup goroutine
 	rateLimiter.Stop()
-
-	// Stop dynamic registry refresh goroutine
-	if dynamicRegistry != nil {
-		dynamicRegistry.Stop()
-		log.Info().Msg("Dynamic registry stopped")
-	}
 
 	// Flush pending events from exchange
 	if err := ex.Close(); err != nil {

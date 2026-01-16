@@ -159,8 +159,15 @@ func (h *CookieSyncHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Determine sync type based on filterSettings
+		syncType := h.getSyncTypeForBidder(bidderCode, req.FilterSettings)
+		if syncType == usersync.SyncType("") {
+			// Bidder filtered out by filterSettings
+			continue
+		}
+
 		// Get sync URL
-		syncInfo, err := syncer.GetSync(usersync.SyncTypeRedirect, gdprStr, req.GDPRConsent, req.USPrivacy)
+		syncInfo, err := syncer.GetSync(syncType, gdprStr, req.GDPRConsent, req.USPrivacy)
 		if err != nil {
 			logger.Log.Debug().Err(err).Str("bidder", bidderCode).Msg("Failed to get sync URL")
 			response.BidderStatus = append(response.BidderStatus, BidderSyncStatus{
@@ -184,6 +191,62 @@ func (h *CookieSyncHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondJSON(w, response)
+}
+
+// getSyncTypeForBidder determines the sync type for a bidder based on filterSettings
+// Returns empty string if the bidder should be filtered out
+func (h *CookieSyncHandler) getSyncTypeForBidder(bidderCode string, filterSettings *FilterSettings) usersync.SyncType {
+	if filterSettings == nil {
+		// No filter settings - default to redirect
+		return usersync.SyncTypeRedirect
+	}
+
+	// Try iframe first (preferred for better sync rates)
+	if filterSettings.Iframe != nil {
+		if h.shouldIncludeBidder(bidderCode, filterSettings.Iframe) {
+			return usersync.SyncTypeIframe
+		}
+	}
+
+	// Try redirect as fallback
+	if filterSettings.Redirect != nil {
+		if h.shouldIncludeBidder(bidderCode, filterSettings.Redirect) {
+			return usersync.SyncTypeRedirect
+		}
+	}
+
+	// If filterSettings is provided but bidder doesn't match any filter, default to redirect
+	// This matches Prebid.js behavior where filterSettings is advisory, not restrictive
+	return usersync.SyncTypeRedirect
+}
+
+// shouldIncludeBidder checks if a bidder passes the filter configuration
+func (h *CookieSyncHandler) shouldIncludeBidder(bidderCode string, config *FilterConfig) bool {
+	if config == nil || len(config.Filter) == 0 {
+		return true // No filter = include all
+	}
+
+	bidderInList := h.containsBidder(config.Filter, bidderCode)
+
+	if config.Bidders == "include" {
+		return bidderInList // Include only if in list
+	} else if config.Bidders == "exclude" {
+		return !bidderInList // Exclude if in list
+	}
+
+	// Unknown mode - default to include
+	return true
+}
+
+// containsBidder checks if a bidder code is in a list (case-insensitive)
+func (h *CookieSyncHandler) containsBidder(list []string, bidder string) bool {
+	bidderLower := strings.ToLower(bidder)
+	for _, b := range list {
+		if strings.ToLower(b) == bidderLower {
+			return true
+		}
+	}
+	return false
 }
 
 // getBiddersToSync determines which bidders need syncing

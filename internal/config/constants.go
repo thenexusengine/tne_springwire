@@ -95,8 +95,6 @@ const (
 	// DefaultEventBufferSize is the default event buffer size
 	DefaultEventBufferSize = 100
 
-	// DynamicRefreshPeriod is how often to refresh dynamic bidders
-	DynamicRefreshPeriod = 30 * time.Second
 )
 
 // Cookie sync defaults

@@ -206,23 +206,28 @@ func (m *PrivacyMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// P2-2: Anonymize IP addresses when GDPR applies and anonymization is enabled
 	requestModified := false
 	if m.config.AnonymizeIP && m.isGDPRApplicable(&bidRequest) {
-		m.anonymizeRequestIPs(&bidRequest)
-		requestModified = true
+		// Use map to preserve all fields including extensions
+		var rawRequest map[string]interface{}
+		if err := json.Unmarshal(body, &rawRequest); err == nil {
+			if m.anonymizeRawRequestIPs(rawRequest, &bidRequest) {
+				requestModified = true
+				// Re-marshal from map to preserve all fields
+				if modifiedBody, err := json.Marshal(rawRequest); err == nil {
+					body = modifiedBody
+				} else {
+					logger.Log.Error().Err(err).Msg("Failed to marshal modified request after IP anonymization")
+					requestModified = false
+				}
+			}
+		} else {
+			logger.Log.Error().Err(err).Msg("Failed to unmarshal request as map for IP anonymization")
+		}
 	}
 
 	// Re-create request body for downstream handler
+	r.Body = io.NopCloser(strings.NewReader(string(body)))
 	if requestModified {
-		// Re-marshal the modified request
-		modifiedBody, err := json.Marshal(&bidRequest)
-		if err != nil {
-			logger.Log.Error().Err(err).Msg("Failed to marshal modified request after IP anonymization")
-			r.Body = io.NopCloser(strings.NewReader(string(body)))
-		} else {
-			r.Body = io.NopCloser(strings.NewReader(string(modifiedBody)))
-			r.ContentLength = int64(len(modifiedBody))
-		}
-	} else {
-		r.Body = io.NopCloser(strings.NewReader(string(body)))
+		r.ContentLength = int64(len(body))
 	}
 	m.next.ServeHTTP(w, r)
 }
@@ -235,12 +240,19 @@ type PrivacyViolation struct {
 }
 
 // detectApplicableRegulation determines which privacy regulation applies based on user geo
+// Checks both device.geo and user.geo per OpenRTB spec
 func (m *PrivacyMiddleware) detectApplicableRegulation(req *openrtb.BidRequest) PrivacyRegulation {
-	if req.Device == nil || req.Device.Geo == nil {
-		return RegulationNone
+	// Try device.geo first (current location), then user.geo (home location)
+	var geo *openrtb.Geo
+	if req.Device != nil && req.Device.Geo != nil {
+		geo = req.Device.Geo
+	} else if req.User != nil && req.User.Geo != nil {
+		geo = req.User.Geo
 	}
 
-	geo := req.Device.Geo
+	if geo == nil {
+		return RegulationNone
+	}
 
 	// Check GDPR countries (EU/EEA + UK)
 	if geo.Country != "" && gdprCountries[geo.Country] {
@@ -283,13 +295,23 @@ func (m *PrivacyMiddleware) validateGeoConsent(req *openrtb.BidRequest) *Privacy
 	}
 
 	// Check if request has appropriate consent signals for detected regulation
+	// Get geo for logging (prefer device.geo, fallback to user.geo)
+	var geoCountry, geoRegion string
+	if req.Device != nil && req.Device.Geo != nil {
+		geoCountry = req.Device.Geo.Country
+		geoRegion = req.Device.Geo.Region
+	} else if req.User != nil && req.User.Geo != nil {
+		geoCountry = req.User.Geo.Country
+		geoRegion = req.User.Geo.Region
+	}
+
 	switch detectedReg {
 	case RegulationGDPR:
 		// EU user should have GDPR flag and TCF consent
 		if req.Regs == nil || req.Regs.GDPR == nil || *req.Regs.GDPR != 1 {
 			logger.Log.Warn().
 				Str("request_id", req.ID).
-				Str("country", req.Device.Geo.Country).
+				Str("country", geoCountry).
 				Msg("EU user detected but no GDPR flag set")
 			return &PrivacyViolation{
 				Regulation:  "GDPR",
@@ -303,8 +325,8 @@ func (m *PrivacyMiddleware) validateGeoConsent(req *openrtb.BidRequest) *Privacy
 		if req.Regs == nil || req.Regs.USPrivacy == "" {
 			logger.Log.Warn().
 				Str("request_id", req.ID).
-				Str("country", req.Device.Geo.Country).
-				Str("region", req.Device.Geo.Region).
+				Str("country", geoCountry).
+				Str("region", geoRegion).
 				Str("regulation", string(detectedReg)).
 				Msg("US privacy state detected but no US Privacy String provided")
 			return &PrivacyViolation{
@@ -318,7 +340,7 @@ func (m *PrivacyMiddleware) validateGeoConsent(req *openrtb.BidRequest) *Privacy
 		// Other regulations - log but don't block (not fully implemented yet)
 		logger.Log.Info().
 			Str("request_id", req.ID).
-			Str("country", req.Device.Geo.Country).
+			Str("country", geoCountry).
 			Str("regulation", string(detectedReg)).
 			Msg("Privacy regulation detected - enforcement not yet implemented")
 	}
@@ -668,8 +690,9 @@ func CheckVendorConsentStatic(consentString string, gvlID int) bool {
 	return exists && hasConsent
 }
 
-// DetectRegulationFromGeo determines which privacy regulation applies based on device geo
+// DetectRegulationFromGeo determines which privacy regulation applies based on geo
 // This is a standalone function for use in the exchange during auction
+// Pass either device.geo or user.geo
 func DetectRegulationFromGeo(geo *openrtb.Geo) PrivacyRegulation {
 	if geo == nil {
 		return RegulationNone
@@ -703,12 +726,25 @@ func DetectRegulationFromGeo(geo *openrtb.Geo) PrivacyRegulation {
 
 // ShouldFilterBidderByGeo checks if a bidder should be filtered based on geo and consent
 // Returns true if bidder should be SKIPPED (filtered out)
+// Checks both device.geo and user.geo per OpenRTB spec
 func ShouldFilterBidderByGeo(req *openrtb.BidRequest, gvlID int) bool {
-	if req == nil || req.Device == nil || req.Device.Geo == nil {
+	if req == nil {
+		return false
+	}
+
+	// Try device.geo first (current location), then user.geo (home location)
+	var geo *openrtb.Geo
+	if req.Device != nil && req.Device.Geo != nil {
+		geo = req.Device.Geo
+	} else if req.User != nil && req.User.Geo != nil {
+		geo = req.User.Geo
+	}
+
+	if geo == nil {
 		return false // No geo data, can't filter
 	}
 
-	regulation := DetectRegulationFromGeo(req.Device.Geo)
+	regulation := DetectRegulationFromGeo(geo)
 
 	switch regulation {
 	case RegulationGDPR:
@@ -980,4 +1016,45 @@ func (m *PrivacyMiddleware) anonymizeRequestIPs(req *openrtb.BidRequest) {
 			Str("anonymized_ipv6", req.Device.IPv6).
 			Msg("P2-2: Anonymized IPv6 for GDPR compliance")
 	}
+}
+
+// anonymizeRawRequestIPs modifies IP addresses in the raw JSON map without losing unknown fields
+// Returns true if any modifications were made
+func (m *PrivacyMiddleware) anonymizeRawRequestIPs(rawRequest map[string]interface{}, req *openrtb.BidRequest) bool {
+	deviceMap, ok := rawRequest["device"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	modified := false
+
+	// Anonymize IPv4
+	if ipStr, ok := deviceMap["ip"].(string); ok && ipStr != "" {
+		anonymized := AnonymizeIP(ipStr)
+		if anonymized != ipStr {
+			deviceMap["ip"] = anonymized
+			modified = true
+			logger.Log.Debug().
+				Str("request_id", req.ID).
+				Str("original_ip", ipStr).
+				Str("anonymized_ip", anonymized).
+				Msg("P2-2: Anonymized IPv4 for GDPR compliance")
+		}
+	}
+
+	// Anonymize IPv6
+	if ipv6Str, ok := deviceMap["ipv6"].(string); ok && ipv6Str != "" {
+		anonymized := AnonymizeIP(ipv6Str)
+		if anonymized != ipv6Str {
+			deviceMap["ipv6"] = anonymized
+			modified = true
+			logger.Log.Debug().
+				Str("request_id", req.ID).
+				Str("original_ipv6", ipv6Str).
+				Str("anonymized_ipv6", anonymized).
+				Msg("P2-2: Anonymized IPv6 for GDPR compliance")
+		}
+	}
+
+	return modified
 }

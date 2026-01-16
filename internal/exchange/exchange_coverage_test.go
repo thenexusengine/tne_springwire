@@ -35,7 +35,7 @@ func TestGetDemandType_NotFound(t *testing.T) {
 	exchange := New(registry, nil)
 
 	// Unknown bidder should default to platform
-	demandType := exchange.getDemandType("unknown-bidder", nil)
+	demandType := exchange.getDemandType("unknown-bidder")
 	if demandType != adapters.DemandTypePlatform {
 		t.Errorf("Expected DemandTypePlatform for unknown bidder, got %v", demandType)
 	}
@@ -626,7 +626,7 @@ func TestGetDemandType_DefaultBehavior(t *testing.T) {
 	exchange := New(registry, nil)
 
 	// Unknown bidder should default to platform
-	demandType := exchange.getDemandType("unknown-bidder-xyz", nil)
+	demandType := exchange.getDemandType("unknown-bidder-xyz")
 	if demandType != adapters.DemandTypePlatform {
 		t.Errorf("Expected DemandTypePlatform for unknown bidder, got %v", demandType)
 	}

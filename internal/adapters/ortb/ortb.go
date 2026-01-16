@@ -1,8 +1,6 @@
-// Package ortb provides a generic OpenRTB 2.5/2.6 adapter
-// that can be configured dynamically from Redis.
-//
-// This adapter allows creating custom bidder integrations
-// without writing Go code for each bidder.
+// Package ortb provides a generic OpenRTB 2.5/2.6 adapter.
+// This adapter allows creating custom bidder integrations without writing
+// Go code for each bidder.
 package ortb
 
 import (
@@ -18,8 +16,7 @@ import (
 	"github.com/thenexusengine/tne_springwire/internal/openrtb"
 )
 
-// BidderConfig represents a dynamic bidder configuration
-// loaded from Redis. This mirrors the Python BidderConfig model.
+// BidderConfig represents a configurable bidder definition.
 type BidderConfig struct {
 	BidderCode        string                  `json:"bidder_code"`
 	Name              string                  `json:"name"`

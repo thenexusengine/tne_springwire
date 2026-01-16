@@ -387,39 +387,42 @@ func TestAuctionHandler_DebugMode_WithBearerToken(t *testing.T) {
 
 func TestHasAPIKey(t *testing.T) {
 	tests := []struct {
-		name     string
-		headers  map[string]string
-		expected bool
+		name        string
+		headers     map[string]string
+		publisherID string // Publisher ID to set in context (empty = not set)
+		expected    bool
 	}{
 		{
-			name:     "no auth headers",
+			name:     "no auth headers or context",
 			headers:  map[string]string{},
 			expected: false,
 		},
 		{
-			name:     "X-API-Key present",
-			headers:  map[string]string{"X-API-Key": "test-key"},
+			name:        "publisher ID in context",
+			headers:     map[string]string{},
+			publisherID: "pub-12345678",
+			expected:    true,
+		},
+		{
+			name:     "X-Publisher-ID header valid (8+ chars)",
+			headers:  map[string]string{"X-Publisher-ID": "pub-12345"},
 			expected: true,
 		},
 		{
-			name:     "Bearer token present",
-			headers:  map[string]string{"Authorization": "Bearer test-token"},
-			expected: true,
-		},
-		{
-			name:     "empty X-API-Key",
-			headers:  map[string]string{"X-API-Key": ""},
+			name:     "X-Publisher-ID header too short (<8 chars)",
+			headers:  map[string]string{"X-Publisher-ID": "pub-123"},
 			expected: false,
 		},
 		{
-			name:     "Authorization without Bearer",
-			headers:  map[string]string{"Authorization": "Basic test"},
+			name:     "empty X-Publisher-ID",
+			headers:  map[string]string{"X-Publisher-ID": ""},
 			expected: false,
 		},
 		{
-			name:     "Bearer only (no token)",
-			headers:  map[string]string{"Authorization": "Bearer "},
-			expected: false,
+			name:        "context overrides short header",
+			headers:     map[string]string{"X-Publisher-ID": "short"},
+			publisherID: "pub-from-context",
+			expected:    true,
 		},
 	}
 
@@ -428,6 +431,12 @@ func TestHasAPIKey(t *testing.T) {
 			req := httptest.NewRequest("POST", "/test", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
+			}
+
+			// Set publisher ID in context if provided
+			if tt.publisherID != "" {
+				ctx := SetPublisherID(req.Context(), tt.publisherID)
+				req = req.WithContext(ctx)
 			}
 
 			result := hasAPIKey(req)
@@ -519,8 +528,12 @@ func TestValidateBidRequest_ImpressionMissingID(t *testing.T) {
 	if valErr.Field != "imp[].id" {
 		t.Errorf("expected field 'imp[].id', got '%s'", valErr.Field)
 	}
-	if valErr.Index != 0 {
-		t.Errorf("expected index 0, got %d", valErr.Index)
+	if valErr.Index == nil || *valErr.Index != 0 {
+		if valErr.Index == nil {
+			t.Errorf("expected index 0, got nil")
+		} else {
+			t.Errorf("expected index 0, got %d", *valErr.Index)
+		}
 	}
 }
 
@@ -569,17 +582,22 @@ func TestValidateBidRequest_SecondImpressionInvalid(t *testing.T) {
 	}
 	var valErr *ValidationError
 	_ = errors.As(err, &valErr)
-	if valErr.Index != 1 {
-		t.Errorf("expected index 1, got %d", valErr.Index)
+	if valErr.Index == nil || *valErr.Index != 1 {
+		if valErr.Index == nil {
+			t.Errorf("expected index 1, got nil")
+		} else {
+			t.Errorf("expected index 1, got %d", *valErr.Index)
+		}
 	}
 }
 
 // Test ValidationError
 func TestValidationError_Error_WithIndex(t *testing.T) {
+	idx := 2
 	err := &ValidationError{
 		Field:   "imp[].id",
 		Message: "required",
-		Index:   2,
+		Index:   &idx,
 	}
 	expected := "imp[].id[2]: required"
 	if err.Error() != expected {
@@ -591,9 +609,9 @@ func TestValidationError_Error_WithoutIndex(t *testing.T) {
 	err := &ValidationError{
 		Field:   "id",
 		Message: "required",
-		Index:   -1,
+		Index:   nil, // nil means no index
 	}
-	// When Index is negative, no index should be shown
+	// When Index is nil, no index should be shown
 	result := err.Error()
 	if strings.Contains(result, "[") {
 		t.Errorf("expected no brackets, got '%s'", result)
@@ -601,10 +619,11 @@ func TestValidationError_Error_WithoutIndex(t *testing.T) {
 }
 
 func TestValidationError_Error_ZeroIndex(t *testing.T) {
+	idx := 0
 	err := &ValidationError{
 		Field:   "imp[].id",
 		Message: "required",
-		Index:   0,
+		Index:   &idx,
 	}
 	expected := "imp[].id[0]: required"
 	if err.Error() != expected {
@@ -780,14 +799,6 @@ func (m *mockStaticRegistry) ListBidders() []string {
 	return m.bidders
 }
 
-type mockDynamicRegistry struct {
-	bidders []string
-}
-
-func (m *mockDynamicRegistry) ListBidderCodes() []string {
-	return m.bidders
-}
-
 // Test InfoBiddersHandler
 func TestNewInfoBiddersHandler(t *testing.T) {
 	handler := NewInfoBiddersHandler([]string{"bidder1", "bidder2"})
@@ -798,23 +809,19 @@ func TestNewInfoBiddersHandler(t *testing.T) {
 
 func TestNewDynamicInfoBiddersHandler(t *testing.T) {
 	static := &mockStaticRegistry{bidders: []string{"static1"}}
-	dynamic := &mockDynamicRegistry{bidders: []string{"dynamic1"}}
 
-	handler := NewDynamicInfoBiddersHandler(static, dynamic)
+	handler := NewDynamicInfoBiddersHandler(static)
 	if handler == nil {
 		t.Fatal("expected non-nil handler")
 	}
 	if handler.staticRegistry != static {
 		t.Error("expected static registry to be set")
 	}
-	if handler.dynamicRegistry != dynamic {
-		t.Error("expected dynamic registry to be set")
-	}
 }
 
 func TestInfoBiddersHandler_StaticOnly(t *testing.T) {
 	static := &mockStaticRegistry{bidders: []string{"bidder1", "bidder2"}}
-	handler := NewDynamicInfoBiddersHandler(static, nil)
+	handler := NewDynamicInfoBiddersHandler(static)
 
 	req := httptest.NewRequest("GET", "/info/bidders", nil)
 	w := httptest.NewRecorder()
@@ -835,69 +842,9 @@ func TestInfoBiddersHandler_StaticOnly(t *testing.T) {
 	}
 }
 
-func TestInfoBiddersHandler_DynamicOnly(t *testing.T) {
-	dynamic := &mockDynamicRegistry{bidders: []string{"dynamic1", "dynamic2", "dynamic3"}}
-	handler := NewDynamicInfoBiddersHandler(nil, dynamic)
-
-	req := httptest.NewRequest("GET", "/info/bidders", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-
-	var bidders []string
-	json.Unmarshal(w.Body.Bytes(), &bidders)
-
-	if len(bidders) != 3 {
-		t.Errorf("expected 3 bidders, got %d", len(bidders))
-	}
-}
-
-func TestInfoBiddersHandler_BothRegistries(t *testing.T) {
-	static := &mockStaticRegistry{bidders: []string{"bidder1", "bidder2"}}
-	dynamic := &mockDynamicRegistry{bidders: []string{"dynamic1", "dynamic2"}}
-	handler := NewDynamicInfoBiddersHandler(static, dynamic)
-
-	req := httptest.NewRequest("GET", "/info/bidders", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	var bidders []string
-	json.Unmarshal(w.Body.Bytes(), &bidders)
-
-	if len(bidders) != 4 {
-		t.Errorf("expected 4 bidders, got %d", len(bidders))
-	}
-}
-
-func TestInfoBiddersHandler_DeduplicatesBidders(t *testing.T) {
-	// Both registries have the same bidder
-	static := &mockStaticRegistry{bidders: []string{"bidder1", "common"}}
-	dynamic := &mockDynamicRegistry{bidders: []string{"common", "dynamic1"}}
-	handler := NewDynamicInfoBiddersHandler(static, dynamic)
-
-	req := httptest.NewRequest("GET", "/info/bidders", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	var bidders []string
-	json.Unmarshal(w.Body.Bytes(), &bidders)
-
-	// Should be deduplicated: bidder1, common, dynamic1
-	if len(bidders) != 3 {
-		t.Errorf("expected 3 bidders (deduplicated), got %d: %v", len(bidders), bidders)
-	}
-}
-
 func TestInfoBiddersHandler_EmptyRegistries(t *testing.T) {
 	static := &mockStaticRegistry{bidders: []string{}}
-	dynamic := &mockDynamicRegistry{bidders: []string{}}
-	handler := NewDynamicInfoBiddersHandler(static, dynamic)
+	handler := NewDynamicInfoBiddersHandler(static)
 
 	req := httptest.NewRequest("GET", "/info/bidders", nil)
 	w := httptest.NewRecorder()
@@ -913,7 +860,7 @@ func TestInfoBiddersHandler_EmptyRegistries(t *testing.T) {
 }
 
 func TestInfoBiddersHandler_NilRegistries(t *testing.T) {
-	handler := NewDynamicInfoBiddersHandler(nil, nil)
+	handler := NewDynamicInfoBiddersHandler(nil)
 
 	req := httptest.NewRequest("GET", "/info/bidders", nil)
 	w := httptest.NewRecorder()
@@ -933,7 +880,7 @@ func TestInfoBiddersHandler_NilRegistries(t *testing.T) {
 }
 
 func TestInfoBiddersHandler_ContentType(t *testing.T) {
-	handler := NewDynamicInfoBiddersHandler(nil, nil)
+	handler := NewDynamicInfoBiddersHandler(nil)
 
 	req := httptest.NewRequest("GET", "/info/bidders", nil)
 	w := httptest.NewRecorder()

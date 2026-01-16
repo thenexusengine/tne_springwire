@@ -1,0 +1,15 @@
+╔══════════════════════════════════════════════════════════════╗
+║      ModSecurity WAF Test Suite - Comprehensive Report      ║
+╚══════════════════════════════════════════════════════════════╝
+
+Test Run: 20260116_113502
+WAF URL: http://localhost:8000
+
+[1;33m[1/6] Checking WAF availability...[0m
+[0;32m✓ WAF is running[0m
+
+[1;33m[2/6] Testing Legitimate OpenRTB Requests...[0m
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[0;31m✗ FAIL[0m - Basic Banner Request
+  Expected: 200|204, Got: 403
+  Response: {"error":"unknown_publisher: publisher not registered"}...

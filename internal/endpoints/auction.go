@@ -3,11 +3,12 @@ package endpoints
 
 import (
 	"encoding/json"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	log "github.com/rs/zerolog/log"
@@ -23,6 +24,23 @@ const maxRequestBodySize = 1024 * 1024
 // debugRequiresAuth controls whether debug mode requires authentication
 // P2-1: Enabled by default to prevent information disclosure
 var debugRequiresAuth = os.Getenv("DEBUG_REQUIRES_AUTH") != "false"
+
+// Context key for authenticated publisher ID (set by auth middleware)
+type contextKey string
+
+const publisherIDContextKey contextKey = "publisher_id"
+
+// SetPublisherID sets the authenticated publisher ID in request context
+// This should only be called by auth middleware after validating the API key
+func SetPublisherID(ctx context.Context, publisherID string) context.Context {
+	return context.WithValue(ctx, publisherIDContextKey, publisherID)
+}
+
+// GetPublisherID retrieves the authenticated publisher ID from context
+func GetPublisherID(ctx context.Context) (string, bool) {
+	publisherID, ok := ctx.Value(publisherIDContextKey).(string)
+	return publisherID, ok && publisherID != ""
+}
 
 // AuctionHandler handles /openrtb2/auction requests
 type AuctionHandler struct {
@@ -98,12 +116,11 @@ func (h *AuctionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		statusCode := http.StatusInternalServerError
 		errorMsg := "Internal server error"
 
-		// Check if error message indicates validation failure
-		errStr := err.Error()
-		if strings.Contains(errStr, "invalid") || strings.Contains(errStr, "required") ||
-		   strings.Contains(errStr, "missing") || strings.Contains(errStr, "duplicate") {
+		// Check if error is a ValidationError (client-side error)
+		var validationErr *exchange.ValidationError
+		if errors.As(err, &validationErr) {
 			statusCode = http.StatusBadRequest
-			errorMsg = errStr
+			errorMsg = validationErr.Message
 		}
 
 		logger.Log.Error().
@@ -166,17 +183,18 @@ func (h *AuctionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // validateBidRequest validates the bid request
 func validateBidRequest(req *openrtb.BidRequest) error {
 	if req.ID == "" {
-		return &ValidationError{Field: "id", Message: "required", Index: -1}
+		return &ValidationError{Field: "id", Message: "required"}
 	}
 	if len(req.Imp) == 0 {
-		return &ValidationError{Field: "imp", Message: "at least one impression required", Index: -1}
+		return &ValidationError{Field: "imp", Message: "at least one impression required"}
 	}
 	for i, imp := range req.Imp {
+		idx := i
 		if imp.ID == "" {
-			return &ValidationError{Field: "imp[].id", Message: "required", Index: i}
+			return &ValidationError{Field: "imp[].id", Message: "required", Index: &idx}
 		}
 		if imp.Banner == nil && imp.Video == nil && imp.Native == nil && imp.Audio == nil {
-			return &ValidationError{Field: "imp[].banner|video|native|audio", Message: "at least one media type required", Index: i}
+			return &ValidationError{Field: "imp[].banner|video|native|audio", Message: "at least one media type required", Index: &idx}
 		}
 	}
 	return nil
@@ -186,12 +204,12 @@ func validateBidRequest(req *openrtb.BidRequest) error {
 type ValidationError struct {
 	Field   string
 	Message string
-	Index   int
+	Index   *int // nil means no index (non-array field)
 }
 
 func (e *ValidationError) Error() string {
-	if e.Index >= 0 {
-		return fmt.Sprintf("%s[%d]: %s", e.Field, e.Index, e.Message)
+	if e.Index != nil && *e.Index >= 0 {
+		return fmt.Sprintf("%s[%d]: %s", e.Field, *e.Index, e.Message)
 	}
 	return e.Field + ": " + e.Message
 }
@@ -231,15 +249,30 @@ func writeError(w http.ResponseWriter, message string, status int) {
 	}
 }
 
-// hasAPIKey checks if request has valid API key header
+// hasAPIKey checks if request has valid API key
 // P2-1: Used to gate debug mode access
 func hasAPIKey(r *http.Request) bool {
-	// Check if auth middleware validated the API key and set publisher ID
-	// The auth middleware sets X-Publisher-ID only when the API key is valid
-	// This prevents debug mode from being enabled by just sending any API key header
-	if r.Header.Get("X-Publisher-ID") != "" {
+	// Check context first (secure - can't be spoofed by client)
+	if publisherID, ok := GetPublisherID(r.Context()); ok && publisherID != "" {
 		return true
 	}
+
+	// Fallback: check if auth middleware set X-Publisher-ID header
+	// SECURITY NOTE: Auth middleware should strip incoming X-Publisher-ID headers
+	// to prevent header injection attacks
+	publisherIDHeader := r.Header.Get("X-Publisher-ID")
+	if publisherIDHeader != "" && len(publisherIDHeader) > 0 {
+		// Additional validation: publisher ID should look like a valid ID
+		// (not just "1" or "test" which could be injected)
+		// Basic check: should be alphanumeric and reasonable length
+		if len(publisherIDHeader) >= 8 {
+			return true
+		}
+		logger.Log.Warn().
+			Str("publisher_id", publisherIDHeader).
+			Msg("Rejecting suspicious X-Publisher-ID header (too short, possible injection attempt)")
+	}
+
 	return false
 }
 
@@ -267,55 +300,46 @@ type BidderLister interface {
 	ListBidders() []string
 }
 
-// DynamicBidderLister is an optional interface for listing dynamic bidders
-type DynamicBidderLister interface {
-	ListBidderCodes() []string
-}
-
 // InfoBiddersHandler handles /info/bidders requests
 type InfoBiddersHandler struct {
-	staticRegistry  BidderLister
-	dynamicRegistry DynamicBidderLister // May be nil
+	staticRegistry BidderLister
 }
 
-// NewInfoBiddersHandler creates a new bidders info handler
-// Deprecated: Use NewDynamicInfoBiddersHandler instead for proper dynamic bidder support
-// WARNING: This constructor returns a broken handler that always returns an empty bidder list.
-// It exists only for backwards compatibility and should not be used in new code.
+// NewInfoBiddersHandler creates a new bidders info handler from a static list.
+// Deprecated: Use NewDynamicInfoBiddersHandler instead.
 func NewInfoBiddersHandler(bidders []string) *InfoBiddersHandler {
-	// This function is broken by design - it ignores the bidders parameter and returns
-	// an empty handler. Callers should use NewDynamicInfoBiddersHandler instead.
-	// We can't fix this without breaking the deprecated API, and since there's a better
-	// alternative, we just document the issue and recommend migration.
 	logger.Log.Warn().
-		Int("bidders_ignored", len(bidders)).
-		Msg("NewInfoBiddersHandler is deprecated and returns empty handler - use NewDynamicInfoBiddersHandler instead")
-	return &InfoBiddersHandler{}
+		Int("bidder_count", len(bidders)).
+		Msg("NewInfoBiddersHandler is deprecated - use NewDynamicInfoBiddersHandler instead")
+	return &InfoBiddersHandler{
+		staticRegistry: &staticBidderList{bidders: bidders},
+	}
 }
 
-// NewDynamicInfoBiddersHandler creates a handler that queries registries at request time
-func NewDynamicInfoBiddersHandler(staticRegistry BidderLister, dynamicRegistry DynamicBidderLister) *InfoBiddersHandler {
+// staticBidderList implements BidderLister with a fixed list of bidders
+type staticBidderList struct {
+	bidders []string
+}
+
+func (s *staticBidderList) ListBidders() []string {
+	return s.bidders
+}
+
+// NewDynamicInfoBiddersHandler creates a handler that queries the registry at request time
+func NewDynamicInfoBiddersHandler(staticRegistry BidderLister) *InfoBiddersHandler {
 	return &InfoBiddersHandler{
-		staticRegistry:  staticRegistry,
-		dynamicRegistry: dynamicRegistry,
+		staticRegistry: staticRegistry,
 	}
 }
 
 // ServeHTTP handles info/bidders requests
 func (h *InfoBiddersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Collect bidders from both registries at request time
+	// Collect bidders from the registry at request time
 	bidderSet := make(map[string]bool)
 
 	// Add static bidders
 	if h.staticRegistry != nil {
 		for _, bidder := range h.staticRegistry.ListBidders() {
-			bidderSet[bidder] = true
-		}
-	}
-
-	// Add dynamic bidders
-	if h.dynamicRegistry != nil {
-		for _, bidder := range h.dynamicRegistry.ListBidderCodes() {
 			bidderSet[bidder] = true
 		}
 	}

@@ -158,6 +158,12 @@ func (s *PublisherStore) Create(ctx context.Context, p *Publisher) error {
 		p.BidMultiplier = 1.0
 	}
 
+	// Default status to 'active' if not set to prevent DB constraint violation
+	status := p.Status
+	if status == "" {
+		status = "active"
+	}
+
 	query := `
 		INSERT INTO publishers (
 			publisher_id, name, allowed_domains, bidder_params, bid_multiplier, status, notes, contact_email
@@ -176,7 +182,7 @@ func (s *PublisherStore) Create(ctx context.Context, p *Publisher) error {
 		p.AllowedDomains,
 		bidderParamsJSON,
 		p.BidMultiplier,
-		p.Status,
+		status,
 		p.Notes,
 		p.ContactEmail,
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
@@ -272,14 +278,26 @@ func (s *PublisherStore) GetBidderParams(ctx context.Context, publisherID, bidde
 		return nil, fmt.Errorf("failed to query bidder params: %w", err)
 	}
 
-	var params map[string]interface{}
-	if len(paramsJSON) > 0 {
-		if err := json.Unmarshal(paramsJSON, &params); err != nil {
-			return nil, fmt.Errorf("failed to parse bidder params: %w", err)
-		}
+	if len(paramsJSON) == 0 {
+		return nil, nil
 	}
 
-	return params, nil
+	// First unmarshal to interface{} to handle any JSON type
+	var rawValue interface{}
+	if err := json.Unmarshal(paramsJSON, &rawValue); err != nil {
+		return nil, fmt.Errorf("failed to parse bidder params: %w", err)
+	}
+
+	// If it's already a map, return it
+	if params, ok := rawValue.(map[string]interface{}); ok {
+		return params, nil
+	}
+
+	// If it's a scalar or array, wrap it in a map with "value" key
+	// This maintains backwards compatibility while supporting non-object params
+	return map[string]interface{}{
+		"value": rawValue,
+	}, nil
 }
 
 // NewDBConnection creates a new database connection

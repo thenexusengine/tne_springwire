@@ -12,13 +12,26 @@ import (
 	"time"
 
 	"github.com/thenexusengine/tne_springwire/internal/adapters"
-	"github.com/thenexusengine/tne_springwire/internal/adapters/ortb"
 	"github.com/thenexusengine/tne_springwire/internal/fpd"
 	"github.com/thenexusengine/tne_springwire/internal/middleware"
 	"github.com/thenexusengine/tne_springwire/internal/openrtb"
 	"github.com/thenexusengine/tne_springwire/pkg/idr"
 	"github.com/thenexusengine/tne_springwire/pkg/logger"
 )
+
+// ValidationError represents a client validation error (results in 4xx response)
+type ValidationError struct {
+	Message string
+}
+
+func (e *ValidationError) Error() string {
+	return e.Message
+}
+
+// NewValidationError creates a new validation error
+func NewValidationError(format string, args ...interface{}) *ValidationError {
+	return &ValidationError{Message: fmt.Sprintf(format, args...)}
+}
 
 // MetricsRecorder interface for recording revenue/margin metrics
 type MetricsRecorder interface {
@@ -29,7 +42,6 @@ type MetricsRecorder interface {
 // Exchange orchestrates the auction process
 type Exchange struct {
 	registry        *adapters.Registry
-	dynamicRegistry *ortb.DynamicRegistry
 	httpClient      adapters.HTTPClient
 	idrClient       *idr.Client
 	eventRecorder   *idr.EventRecorder
@@ -38,7 +50,7 @@ type Exchange struct {
 	eidFilter       *fpd.EIDFilter
 	metrics         MetricsRecorder
 
-	// configMu protects dynamicRegistry, fpdProcessor, eidFilter, and config.FPD
+	// configMu protects fpdProcessor, eidFilter, and config.FPD
 	// for safe concurrent access during runtime config updates
 	configMu sync.RWMutex
 }
@@ -61,12 +73,6 @@ const (
 	defaultMaxDataPerUser           = 20  // Maximum Data segments to clone
 	defaultMaxDealsPerImp           = 50  // Maximum deals per impression
 	defaultMaxSChainNodes           = 20  // Maximum supply chain nodes
-)
-
-// P1-4: Timeout bounds for dynamic adapter validation
-const (
-	minBidderTimeout = 10 * time.Millisecond // Minimum reasonable timeout
-	maxBidderTimeout = 5 * time.Second       // Maximum to prevent resource exhaustion
 )
 
 // maxAllowedTMax caps TMax at a reasonable maximum to prevent resource exhaustion (10 seconds)
@@ -109,9 +115,6 @@ type Config struct {
 	DefaultCurrency      string
 	FPD                  *fpd.Config
 	CloneLimits          *CloneLimits // P3-1: Configurable clone limits
-	// Dynamic bidder configuration
-	DynamicBiddersEnabled bool
-	DynamicRefreshPeriod  time.Duration
 	// Auction configuration
 	AuctionType    AuctionType
 	PriceIncrement float64 // For second-price auctions (typically 0.01)
@@ -132,8 +135,6 @@ func DefaultConfig() *Config {
 		DefaultCurrency:       "USD",
 		FPD:                   fpd.DefaultConfig(),
 		CloneLimits:           DefaultCloneLimits(), // P3-1: Configurable clone limits
-		DynamicBiddersEnabled: true,
-		DynamicRefreshPeriod:  30 * time.Second,
 		AuctionType:           FirstPriceAuction,
 		PriceIncrement:        0.01,
 		MinBidPrice:           0.0,
@@ -239,25 +240,11 @@ func New(registry *adapters.Registry, config *Config) *Exchange {
 	return ex
 }
 
-// SetDynamicRegistry sets the dynamic bidder registry
-func (e *Exchange) SetDynamicRegistry(dr *ortb.DynamicRegistry) {
-	e.configMu.Lock()
-	defer e.configMu.Unlock()
-	e.dynamicRegistry = dr
-}
-
 // SetMetrics sets the metrics recorder for tracking revenue/margins
 func (e *Exchange) SetMetrics(m MetricsRecorder) {
 	e.configMu.Lock()
 	defer e.configMu.Unlock()
 	e.metrics = m
-}
-
-// GetDynamicRegistry returns the dynamic registry
-func (e *Exchange) GetDynamicRegistry() *ortb.DynamicRegistry {
-	e.configMu.RLock()
-	defer e.configMu.RUnlock()
-	return e.dynamicRegistry
 }
 
 // Close shuts down the exchange and flushes pending events
@@ -802,13 +789,13 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 
 	// P0-7: Validate required BidRequest fields per OpenRTB 2.x spec
 	if req.BidRequest == nil {
-		return nil, fmt.Errorf("invalid auction request: missing bid request")
+		return nil, NewValidationError("invalid auction request: missing bid request")
 	}
 	if req.BidRequest.ID == "" {
-		return nil, fmt.Errorf("invalid bid request: missing required field 'id'")
+		return nil, NewValidationError("invalid bid request: missing required field 'id'")
 	}
 	if len(req.BidRequest.Imp) == 0 {
-		return nil, fmt.Errorf("invalid bid request: must have at least one impression")
+		return nil, NewValidationError("invalid bid request: must have at least one impression")
 	}
 
 	// P1-2: Validate impression count early to prevent OOM from malicious requests
@@ -816,7 +803,7 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 	// Use configured limit instead of hardcoded constant to allow higher limits when needed
 	maxImpressions := e.config.CloneLimits.MaxImpressionsPerRequest
 	if len(req.BidRequest.Imp) > maxImpressions {
-		return nil, fmt.Errorf("invalid bid request: too many impressions (max %d, got %d)",
+		return nil, NewValidationError("invalid bid request: too many impressions (max %d, got %d)",
 			maxImpressions, len(req.BidRequest.Imp))
 	}
 
@@ -824,26 +811,26 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 	hasSite := req.BidRequest.Site != nil
 	hasApp := req.BidRequest.App != nil
 	if !hasSite && !hasApp {
-		return nil, fmt.Errorf("invalid bid request: must have either 'site' or 'app' object (OpenRTB 2.5)")
+		return nil, NewValidationError("invalid bid request: must have either 'site' or 'app' object (OpenRTB 2.5)")
 	}
 	if hasSite && hasApp {
-		return nil, fmt.Errorf("invalid bid request: cannot have both 'site' and 'app' objects (OpenRTB 2.5)")
+		return nil, NewValidationError("invalid bid request: cannot have both 'site' and 'app' objects (OpenRTB 2.5)")
 	}
 
 	// P1-NEW-2: Validate impression IDs are unique and non-empty per OpenRTB 2.5 section 3.2.4
 	seenImpIDs := make(map[string]bool, len(req.BidRequest.Imp))
 	for i, imp := range req.BidRequest.Imp {
 		if imp.ID == "" {
-			return nil, fmt.Errorf("invalid bid request: impression[%d] has empty id (required by OpenRTB 2.5)", i)
+			return nil, NewValidationError("invalid bid request: impression[%d] has empty id (required by OpenRTB 2.5)", i)
 		}
 		if seenImpIDs[imp.ID] {
-			return nil, fmt.Errorf("invalid bid request: duplicate impression id %q (must be unique per OpenRTB 2.5)", imp.ID)
+			return nil, NewValidationError("invalid bid request: duplicate impression id %q (must be unique per OpenRTB 2.5)", imp.ID)
 		}
 		seenImpIDs[imp.ID] = true
 
 		// P2-1: Validate impression has at least one media type per OpenRTB 2.5 section 3.2.4
 		if imp.Banner == nil && imp.Video == nil && imp.Audio == nil && imp.Native == nil {
-			return nil, fmt.Errorf("invalid bid request: impression[%d] has no media type (banner/video/audio/native required)", i)
+			return nil, NewValidationError("invalid bid request: impression[%d] has no media type (banner/video/audio/native required)", i)
 		}
 
 		// P1-NEW-4: Validate banner dimensions per OpenRTB 2.5 section 3.2.6
@@ -851,7 +838,7 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 			hasExplicitSize := imp.Banner.W > 0 && imp.Banner.H > 0
 			hasFormat := len(imp.Banner.Format) > 0
 			if !hasExplicitSize && !hasFormat {
-				return nil, fmt.Errorf("invalid bid request: impression[%d] banner must have either w/h or format array (OpenRTB 2.5)", i)
+				return nil, NewValidationError("invalid bid request: impression[%d] banner must have either w/h or format array (OpenRTB 2.5)", i)
 			}
 		}
 	}
@@ -895,16 +882,9 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 
 	// Snapshot config-protected fields under lock for consistent view during auction
 	e.configMu.RLock()
-	dynamicRegistry := e.dynamicRegistry
 	fpdProcessor := e.fpdProcessor
 	eidFilter := e.eidFilter
 	e.configMu.RUnlock()
-
-	// Add dynamic bidders if enabled
-	if e.config.DynamicBiddersEnabled && dynamicRegistry != nil {
-		dynamicCodes := dynamicRegistry.ListEnabledBidderCodes()
-		availableBidders = append(availableBidders, dynamicCodes...)
-	}
 
 	if len(availableBidders) == 0 {
 		response.BidResponse = e.buildEmptyResponse(req.BidRequest, openrtb.NoBidNoBiddersAvailable)
@@ -1107,7 +1087,7 @@ func (e *Exchange) RunAuction(ctx context.Context, req *AuctionRequest) (*Auctio
 			validBids = append(validBids, ValidatedBid{
 				Bid:        tb,
 				BidderCode: bidderCode,
-				DemandType: e.getDemandType(bidderCode, dynamicRegistry),
+				DemandType: e.getDemandType(bidderCode),
 			})
 		}
 	}
@@ -1225,11 +1205,6 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 	var results sync.Map // P0-1: Thread-safe map for concurrent writes
 	var wg sync.WaitGroup
 
-	// Snapshot dynamicRegistry for consistent access during bidder calls
-	e.configMu.RLock()
-	dynamicRegistry := e.dynamicRegistry
-	e.configMu.RUnlock()
-
 	// P0-4: Create semaphore to limit concurrent bidder calls
 	maxConcurrent := e.config.MaxConcurrentBidders
 	if maxConcurrent <= 0 {
@@ -1303,92 +1278,6 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 			}(bidderCode, adapterWithInfo)
 			continue
 		}
-
-		// Try dynamic registry (using snapshotted reference)
-		if dynamicRegistry != nil {
-			dynamicAdapter, found := dynamicRegistry.Get(bidderCode)
-			if found {
-				wg.Add(1)
-				go func(code string, da *ortb.GenericAdapter) {
-					defer wg.Done()
-
-					// P0-4: Acquire semaphore (blocks if at capacity)
-					select {
-					case sem <- struct{}{}:
-						defer func() { <-sem }() // Release on completion
-					case <-ctx.Done():
-						// Context canceled while waiting for semaphore
-						results.Store(code, &BidderResult{
-							BidderCode: code,
-							Errors:     []error{ctx.Err()},
-							TimedOut:   true,
-						})
-						return
-					}
-
-					// Check geo-aware consent filtering (GDPR, CCPA, etc.)
-					gvlID := da.GetGVLVendorID()
-					if middleware.ShouldFilterBidderByGeo(req, gvlID) {
-						// Detect which regulation applies
-						regulation := middleware.RegulationNone
-						if req.Device != nil && req.Device.Geo != nil {
-							regulation = middleware.DetectRegulationFromGeo(req.Device.Geo)
-						}
-
-						logger.Log.Info().
-							Str("bidder", code).
-							Int("gvl_id", gvlID).
-							Str("request_id", req.ID).
-							Str("regulation", string(regulation)).
-							Str("country", func() string {
-								if req.Device != nil && req.Device.Geo != nil {
-									return req.Device.Geo.Country
-								}
-								return ""
-							}()).
-							Str("region", func() string {
-								if req.Device != nil && req.Device.Geo != nil {
-									return req.Device.Geo.Region
-								}
-								return ""
-							}()).
-							Msg("Skipping dynamic bidder - no consent for user's geographic location")
-
-						results.Store(code, &BidderResult{
-							BidderCode: code,
-							Errors:     []error{fmt.Errorf("no %s consent for vendor %d", regulation, gvlID)},
-						})
-						return
-					}
-
-					// Clone request and apply bidder-specific FPD
-					bidderReq := e.cloneRequestWithFPD(req, code, bidderFPD)
-
-					// P1-4: Use dynamic adapter's timeout with validation bounds
-					// P2-4: Always validate bounds, then use smaller of dynamic or parent timeout
-					bidderTimeout := timeout
-					if da.GetTimeout() > 0 {
-						dynamicTimeout := da.GetTimeout()
-						// Enforce minimum timeout to prevent crashes
-						if dynamicTimeout < minBidderTimeout {
-							dynamicTimeout = minBidderTimeout
-						}
-						// Enforce maximum timeout to prevent resource exhaustion
-						if dynamicTimeout > maxBidderTimeout {
-							dynamicTimeout = maxBidderTimeout
-						}
-						// Use the smaller of validated dynamic timeout or parent timeout
-						if dynamicTimeout < bidderTimeout {
-							bidderTimeout = dynamicTimeout
-						}
-					}
-
-					result := e.callBidder(ctx, bidderReq, code, da, bidderTimeout)
-
-					results.Store(code, result) // P0-1: Thread-safe store
-				}(bidderCode, dynamicAdapter)
-			}
-		}
 	}
 
 	wg.Wait()
@@ -1409,13 +1298,49 @@ func (e *Exchange) callBiddersWithFPD(ctx context.Context, req *openrtb.BidReque
 // cloneRequestWithFPD creates a selective copy of the request with bidder-specific FPD applied
 // and enforces USD currency for all bid requests.
 // PERF: Only clones fields that are modified (Cur, Imp, Site/App/User if FPD applies).
-// Shared fields (Device, Regs, Source, etc.) are NOT copied - adapters must not mutate them.
+// Deep copies Device, Regs, Source to prevent cross-bidder data races.
 func (e *Exchange) cloneRequestWithFPD(req *openrtb.BidRequest, bidderCode string, bidderFPD fpd.BidderFPD) *openrtb.BidRequest {
-	// Shallow copy - shares pointers to Device, Regs, Source, etc.
+	// Shallow copy of top-level struct
 	clone := *req
 
 	// Clone Cur slice (we overwrite it)
 	clone.Cur = []string{e.config.DefaultCurrency}
+
+	// Deep copy Device to prevent adapter mutations from affecting other bidders
+	if req.Device != nil {
+		deviceCopy := *req.Device
+		if req.Device.Geo != nil {
+			geoCopy := *req.Device.Geo
+			deviceCopy.Geo = &geoCopy
+		}
+		clone.Device = &deviceCopy
+	}
+
+	// Deep copy Regs to prevent adapter mutations from affecting other bidders
+	if req.Regs != nil {
+		regsCopy := *req.Regs
+		clone.Regs = &regsCopy
+	}
+
+	// Deep copy Source to prevent adapter mutations from affecting other bidders
+	if req.Source != nil {
+		sourceCopy := *req.Source
+		if req.Source.SChain != nil {
+			schainCopy := *req.Source.SChain
+			if len(req.Source.SChain.Nodes) > 0 {
+				// Bounded allocation for supply chain nodes
+				limits := e.config.CloneLimits
+				nodeCount := len(req.Source.SChain.Nodes)
+				if nodeCount > limits.MaxSChainNodes {
+					nodeCount = limits.MaxSChainNodes
+				}
+				schainCopy.Nodes = make([]openrtb.SupplyChainNode, nodeCount)
+				copy(schainCopy.Nodes, req.Source.SChain.Nodes[:nodeCount])
+			}
+			sourceCopy.SChain = &schainCopy
+		}
+		clone.Source = &sourceCopy
+	}
 
 	// Clone Imp slice - we modify BidFloorCur on each impression
 	// Only clone the slice and the structs we modify, share Banner/Video/etc. pointers
@@ -2008,20 +1933,13 @@ func (e *Exchange) GetIDRClient() *idr.Client {
 	return e.idrClient
 }
 
-// getDemandType returns the demand type for a bidder (platform or publisher)
-// Platform demand is obfuscated under "thenexusengine" seat, publisher demand is transparent
-// Checks static registry first, then dynamic registry, defaults to platform
-func (e *Exchange) getDemandType(bidderCode string, dynamicRegistry *ortb.DynamicRegistry) adapters.DemandType {
+// getDemandType returns the demand type for a bidder (platform or publisher).
+// Platform demand is obfuscated under "thenexusengine" seat, publisher demand is transparent.
+// Checks static registry, defaults to platform.
+func (e *Exchange) getDemandType(bidderCode string) adapters.DemandType {
 	// Check static registry first
 	if awi, ok := e.registry.Get(bidderCode); ok {
 		return awi.Info.DemandType
-	}
-
-	// Check dynamic registry
-	if dynamicRegistry != nil {
-		if adapter, ok := dynamicRegistry.Get(bidderCode); ok {
-			return adapter.GetDemandType()
-		}
 	}
 
 	// Default to platform (obfuscated) for unknown bidders
