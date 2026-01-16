@@ -131,17 +131,30 @@ All deployment is via Docker Compose on catalyst.springwire.ai.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `REDIS_URL` | string | `""` | Redis connection URL |
+| `REDIS_URL` | string | `""` | Redis connection URL (alternative to discrete params) |
+| `REDIS_HOST` | string | `"localhost"` | Redis hostname |
+| `REDIS_PORT` | int | `6379` | Redis port |
+| `REDIS_PASSWORD` | string | `""` | Redis password |
+| `REDIS_DB` | int | `0` | Redis database number |
 | `REDIS_MAX_IDLE` | int | `10` | Max idle connections |
 | `REDIS_MAX_ACTIVE` | int | `50` | Max active connections |
+| `REDIS_POOL_SIZE` | int | `50` | Connection pool size |
+| `REDIS_IDLE_TIMEOUT` | duration | `300s` | Idle connection timeout |
+| `REDIS_POOL_TIMEOUT` | duration | `4s` | Pool wait timeout |
+| `REDIS_AUCTION_TTL` | int | `300` | Auction data TTL (seconds) |
+| `REDIS_CACHE_TTL` | int | `3600` | General cache TTL (seconds) |
+
+**Note**: Use either `REDIS_URL` (connection string) OR discrete parameters (HOST, PORT, etc), not both.
 
 #### IDR Integration
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `IDR_URL` | string | `""` | IDR service endpoint |
-| `IDR_TIMEOUT_MS` | int | `50` | IDR request timeout (ms) |
+| `IDR_API_KEY` | string | `""` | API key for IDR service |
+| `IDR_TIMEOUT_MS` | int | `150` | IDR request timeout (milliseconds) |
 | `IDR_ENABLED` | bool | `true` | Enable IDR demand routing |
+| `CURRENCY_CONVERSION_ENABLED` | bool | `true` | Enable multi-currency bid conversion |
 
 #### IVT Detection
 
@@ -151,10 +164,26 @@ All deployment is via Docker Compose on catalyst.springwire.ai.
 | `IVT_BLOCKING_ENABLED` | bool | `false` | Block high-score traffic |
 | `IVT_CHECK_UA` | bool | `true` | Check user agent patterns |
 | `IVT_CHECK_REFERER` | bool | `true` | Validate referer against domain |
-| `IVT_CHECK_GEO` | bool | `false` | Geographic filtering (requires GeoIP) |
+| `IVT_CHECK_GEO` | bool | `false` | Geographic filtering (requires GeoIP database) |
+| `IVT_GEOIP_DB_PATH` | string | `""` | Path to MaxMind GeoLite2 database file |
 | `IVT_ALLOWED_COUNTRIES` | string | `""` | Comma-separated country codes (whitelist) |
 | `IVT_BLOCKED_COUNTRIES` | string | `""` | Comma-separated country codes (blacklist) |
 | `IVT_REQUIRE_REFERER` | bool | `false` | Strict mode - require referer header |
+
+**Note**: `IVT_CHECK_GEO=true` requires MaxMind GeoLite2 database. See [GEOIP_SETUP.md](internal/middleware/GEOIP_SETUP.md) for setup instructions.
+
+#### Database Configuration
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DB_HOST` | string | `"localhost"` | PostgreSQL hostname |
+| `DB_PORT` | string | `"5432"` | PostgreSQL port |
+| `DB_USER` | string | `"catalyst"` | PostgreSQL username |
+| `DB_PASSWORD` | string | `""` | PostgreSQL password |
+| `DB_NAME` | string | `"catalyst"` | PostgreSQL database name |
+| `DB_SSL_MODE` | string | `"disable"` | PostgreSQL SSL mode (disable, require, verify-full) |
+| `DB_MAX_OPEN_CONNS` | int | `25` | Maximum open database connections |
+| `DB_MAX_IDLE_CONNS` | int | `5` | Maximum idle database connections |
 
 #### Privacy Compliance
 
@@ -163,15 +192,24 @@ All deployment is via Docker Compose on catalyst.springwire.ai.
 | `PBS_ENFORCE_GDPR` | bool | `true` | Enforce GDPR consent |
 | `PBS_ENFORCE_CCPA` | bool | `true` | Enforce CCPA consent |
 | `PBS_ENFORCE_COPPA` | bool | `true` | Enforce COPPA compliance |
+| `PBS_GEO_ENFORCEMENT` | bool | `true` | Auto-detect regulation from device.geo/user.geo |
+| `PBS_ANONYMIZE_IP` | bool | `true` | Anonymize IP addresses when GDPR applies |
+| `PBS_PRIVACY_STRICT_MODE` | bool | `true` | Reject invalid consent (false = strip PII) |
+| `PBS_DISABLE_GDPR_ENFORCEMENT` | bool | `false` | Disable GDPR for testing only |
+
+**Note**: Privacy middleware checks both `device.geo` and `user.geo` for regulation enforcement (audit fix Jan 2026). See [GEO-CONSENT-GUIDE.md](GEO-CONSENT-GUIDE.md) for details.
 
 #### Publisher Authentication
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `PUBLISHER_AUTH_ENABLED` | bool | `true` | Enable publisher validation |
+| `PUBLISHER_AUTH_USE_REDIS` | bool | `true` | Use Redis for publisher lookup (faster) |
 | `PUBLISHER_ALLOW_UNREGISTERED` | bool | `false` | Allow requests without publisher ID |
 | `PUBLISHER_VALIDATE_DOMAIN` | bool | `false` | Validate domain matches registered |
 | `REGISTERED_PUBLISHERS` | string | `""` | `pub1:domain1.com,pub2:domain2.com` format |
+
+**Note**: When `PUBLISHER_AUTH_ENABLED=true`, `/openrtb2/auction` bypasses general API key auth. When disabled, auction requires API keys.
 
 ### Example Configurations
 
@@ -235,6 +273,56 @@ REGISTERED_PUBLISHERS=pub-123:example.com,pub-456:*.mysite.com
 ---
 
 ## Features
+
+### ModSecurity Web Application Firewall (WAF)
+
+Production-ready WAF protection with OWASP Core Rule Set and custom OpenRTB rules.
+
+**What It Protects Against:**
+- SQL injection, XSS, command injection attacks
+- Protocol violations and malformed requests
+- Known CVE vulnerabilities
+- Malicious bot traffic and scanner probes
+- HTTP protocol anomalies
+
+**Custom OpenRTB Rules:**
+- Validates OpenRTB 2.x request structure
+- Enforces required fields (id, imp, site/app)
+- Size limits on arrays (max 100 impressions)
+- Blocked parameter injection attacks
+
+**Deployment Options:**
+
+1. **Reverse Proxy Mode** (Recommended for production)
+```bash
+cd deployment
+./deploy-waf.sh
+
+# WAF runs on :80/:443, proxies to Catalyst on :8000
+# Automatic SSL with Let's Encrypt
+```
+
+2. **Sidecar Mode** (Docker Compose)
+```bash
+docker-compose -f deployment/docker-compose-modsecurity.yml up -d
+```
+
+3. **Standalone Testing**
+```bash
+docker run -p 80:80 \
+  -e BACKEND_URL=http://catalyst:8000 \
+  -e MODSEC_AUDIT_LOG=/var/log/modsec_audit.log \
+  your-waf-image
+```
+
+**Configuration:**
+- `PARANOIA_LEVEL`: 1 (default) to 4 (strict) - Higher = more rules enabled
+- `ANOMALY_THRESHOLD`: Score threshold for blocking (default: 5)
+- `MODSEC_AUDIT_LOG`: Full audit log path for investigation
+
+**See full documentation**: [deployment/WAF-README.md](deployment/WAF-README.md)
+
+---
 
 ### Invalid Traffic (IVT) Detection
 
@@ -431,22 +519,85 @@ IDR_ENABLED=true
 
 ### Privacy Compliance
 
-Built-in enforcement for GDPR, CCPA, and COPPA.
+Comprehensive privacy enforcement with **automatic geographic detection** and support for 7+ global privacy regulations.
 
-**GDPR:**
-- Requires consent string in bid request
-- Validates TCF 2.0 consent strings
-- Blocks auctions without valid consent
+#### Supported Regulations
 
-**CCPA:**
-- Respects "Do Not Sell" signals
-- Validates US Privacy string
-- Blocks California traffic without consent
+- **GDPR** (EU/EEA/UK) - TCF 2.0 consent framework
+- **CCPA** (California, USA) - Do Not Sell enforcement
+- **COPPA** (USA) - Children's privacy protection
+- **VCDPA** (Virginia), **CPA** (Colorado), **CTDPA** (Connecticut), **UCPA** (Utah)
+- **LGPD** (Brazil), **PIPEDA** (Canada), **PDPA** (Singapore)
 
-**COPPA:**
-- Enforces age-restricted content rules
-- Validates coppa flag in bid request
-- Blocks auctions for children's sites
+#### How It Works
+
+**1. Geographic Auto-Detection** (Audit Fix - Jan 2026)
+
+The system automatically detects applicable privacy regulations from geographic data:
+
+```javascript
+// Checks BOTH locations for enforcement (prevents bypass)
+if (request.device?.geo?.country) {
+  // Check device location (current)
+}
+if (request.user?.geo?.country) {
+  // Check user location (home address)
+}
+```
+
+**Security Note**: Prior to Jan 2026, only `device.geo` was checked. Users could bypass GDPR by omitting device.geo and sending only user.geo. This vulnerability has been fixed.
+
+**2. IP Anonymization**
+
+When GDPR applies and `PBS_ANONYMIZE_IP=true`:
+- IPv4: Last octet zeroed (e.g., `192.168.1.100` → `192.168.1.0`)
+- IPv6: Last 80 bits zeroed
+- Preserves OpenRTB extensions during anonymization
+
+**3. TCF Vendor Consent**
+
+Per-bidder consent validation using IAB GVL IDs:
+- Checks vendor-specific consent in TCF string
+- Filters bidders without user consent
+- Supports purpose and special feature consent
+
+**4. Strict vs Permissive Mode**
+
+- `PBS_PRIVACY_STRICT_MODE=true`: Reject invalid/missing consent (return 400)
+- `PBS_PRIVACY_STRICT_MODE=false`: Strip PII and continue auction
+
+#### Configuration Examples
+
+**GDPR (European Union)**
+```bash
+PBS_ENFORCE_GDPR=true
+PBS_GEO_ENFORCEMENT=true      # Auto-detect from geo
+PBS_ANONYMIZE_IP=true         # Required for GDPR
+PBS_PRIVACY_STRICT_MODE=true  # Reject invalid consent
+```
+
+**CCPA (California)**
+```bash
+PBS_ENFORCE_CCPA=true
+PBS_GEO_ENFORCEMENT=true
+# Respects "Do Not Sell" (usprivacy string)
+```
+
+**Development/Testing**
+```bash
+PBS_DISABLE_GDPR_ENFORCEMENT=true  # ⚠️ Testing only!
+```
+
+#### Compliance Documentation
+
+- **[GEO-CONSENT-GUIDE.md](GEO-CONSENT-GUIDE.md)** - Geographic enforcement rules
+- **[TCF-VENDOR-CONSENT-GUIDE.md](TCF-VENDOR-CONSENT-GUIDE.md)** - TCF 2.0 implementation
+
+#### Recent Improvements (Audit Fixes - Jan 2026)
+
+1. ✅ **Dual Geo-Check**: Validates both `device.geo` AND `user.geo` (prevents bypass)
+2. ✅ **Extension Preservation**: IP anonymization preserves all OpenRTB extensions
+3. ✅ **Proper Error Codes**: Returns 400 (not 500) for invalid consent
 
 ---
 
@@ -680,36 +831,42 @@ tne-catalyst/
 
 ### Adding a New Bidder Adapter
 
-1. Create adapter file in `internal/adapters/`:
-```go
-package adapters
+> **Note**: As of January 2026, the system uses **static bidders only**. Dynamic bidder loading from PostgreSQL was removed for performance and security.
 
-type MyBidderAdapter struct {
+**Current Static Bidders**: `rubicon`, `pubmatic`, `appnexus`, `demo`
+
+To add a new bidder, create a static adapter and register it in the exchange:
+
+1. **Create adapter file** in `internal/adapters/<bidder>/`:
+```go
+package mybidder
+
+import "github.com/thenexusengine/tne_springwire/internal/openrtb"
+
+type Adapter struct {
     endpoint string
-    timeout  time.Duration
 }
 
-func (a *MyBidderAdapter) MakeBids(ctx context.Context, req *openrtb2.BidRequest) (*BidResponse, error) {
-    // Implement bidder-specific logic
+func NewAdapter(endpoint string) *Adapter {
+    return &Adapter{endpoint: endpoint}
+}
+
+func (a *Adapter) MakeBids(req *openrtb.BidRequest,
+    params map[string]interface{}) (*openrtb.BidResponse, error) {
+    // Implement bidding logic
 }
 ```
 
-2. Register adapter in `internal/adapters/registry.go`:
+2. **Register in exchange** (`internal/exchange/exchange.go`):
 ```go
-func init() {
-    Register("mybidder", &MyBidderAdapter{
-        endpoint: "https://mybidder.com/rtb",
-        timeout:  100 * time.Millisecond,
-    })
+func (e *Exchange) initializeStaticBidders() {
+    e.bidders["mybidder"] = mybidder.NewAdapter("https://mybidder.com/rtb")
 }
 ```
 
-3. Test the adapter:
-```go
-func TestMyBidderAdapter(t *testing.T) {
-    // Write unit tests
-}
-```
+3. **Publishers configure params** in their bidder_params JSONB field
+
+For detailed migration guide, see [BIDDER-MANAGEMENT.md](deployment/BIDDER-MANAGEMENT.md)
 
 ### Running Tests
 

@@ -1,6 +1,22 @@
 # Bidder Management - PostgreSQL Guide
 
-This guide explains how to manage bidders and their configurations in Catalyst using PostgreSQL.
+> **⚠️ DEPRECATION NOTICE - January 2026**
+>
+> **Dynamic bidder support has been removed** in commit `449ff38` (Jan 16, 2026).
+>
+> The system now uses **static bidders only** (hardcoded: rubicon, pubmatic, appnexus, demo).
+> While the PostgreSQL bidder tables remain for future use, they are **no longer used for runtime bidder loading**.
+>
+> **Impact:**
+> - Database bidder entries will not be loaded by the exchange
+> - Bidder configuration must be done via code changes
+> - This guide documents the legacy system for reference only
+>
+> **For current bidder management**, see: [Adding Static Bidders](#adding-static-bidders-current-method)
+
+---
+
+This guide explains the legacy database-backed bidder system (no longer active).
 
 ## Overview
 
@@ -613,6 +629,90 @@ Publishers configure bidder-specific parameters in their `bidder_params`:
 ```
 
 The bidders table provides the endpoint URLs, the publishers table provides the parameters.
+
+---
+
+## Adding Static Bidders (Current Method)
+
+Since dynamic bidder support was removed in January 2026, new bidders must be added to the codebase as static adapters.
+
+### Current Static Bidders
+
+The system currently supports these hardcoded bidders:
+- **rubicon** - Magnite/Rubicon Project
+- **pubmatic** - PubMatic
+- **appnexus** - AppNexus/Xandr
+- **demo** - Demo/testing adapter
+
+### How to Add a New Static Bidder
+
+To add a new bidder, you need to modify the code:
+
+**1. Create Bidder Adapter File**
+
+Create `internal/adapters/<bidder_name>/<bidder_name>.go`:
+
+```go
+package mybidder
+
+import (
+    "github.com/thenexusengine/tne_springwire/internal/openrtb"
+)
+
+type MyBidderAdapter struct {
+    endpoint string
+}
+
+func NewAdapter(endpoint string) *MyBidderAdapter {
+    return &MyBidderAdapter{endpoint: endpoint}
+}
+
+func (a *MyBidderAdapter) MakeBids(request *openrtb.BidRequest,
+    publisherParams map[string]interface{}) (*openrtb.BidResponse, error) {
+    // Implement bidding logic
+    // Transform request for bidder
+    // Call bidder endpoint
+    // Parse and return response
+}
+```
+
+**2. Register in Exchange**
+
+Add to `internal/exchange/exchange.go`:
+
+```go
+import "github.com/thenexusengine/tne_springwire/internal/adapters/mybidder"
+
+func (e *Exchange) initializeStaticBidders() {
+    e.bidders["mybidder"] = mybidder.NewAdapter("https://bidder-endpoint.com/auction")
+    // ... other bidders
+}
+```
+
+**3. Configure in Publishers**
+
+Publishers can then use the new bidder in their `bidder_params`:
+
+```json
+{
+  "mybidder": {
+    "accountId": "12345",
+    "siteId": "67890"
+  }
+}
+```
+
+### Why Static Bidders?
+
+Dynamic bidder loading was removed for:
+- **Performance**: No database lookups on every auction
+- **Reliability**: No runtime configuration errors
+- **Simplicity**: Clear codebase dependencies
+- **Security**: No runtime code injection risks
+
+### Future Considerations
+
+The PostgreSQL bidder schema remains intact for potential future use if dynamic loading is re-implemented with proper caching and validation.
 
 ## Support
 
