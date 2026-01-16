@@ -1,0 +1,11 @@
+# =============================================================================
+# Known Fraudulent Publisher IDs for Catalyst WAF
+# =============================================================================
+# Publisher IDs associated with ad fraud. One per line.
+# Obtain from industry fraud lists (TAG, IAS, DoubleVerify, etc.)
+# =============================================================================
+
+# -- Add known bad publisher IDs below this line --
+# format: just the ID value that would appear in the JSON
+# example_fraud_pub_123
+# bad_publisher_456

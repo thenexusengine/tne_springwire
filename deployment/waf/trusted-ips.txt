@@ -1,0 +1,22 @@
+# =============================================================================
+# Trusted IP Addresses/Ranges for Catalyst WAF
+# =============================================================================
+# IPs listed here will have WAF in DetectionOnly mode (log but don't block).
+# Use for known SSP/DSP partners, monitoring systems, and internal services.
+# =============================================================================
+
+# -- Internal/Monitoring --
+127.0.0.1
+::1
+
+# -- Add trusted partner IPs below this line --
+# Example: Google Ad Manager
+# 66.249.64.0/19
+
+# Example: Amazon (for AWS-hosted DSPs)
+# Add specific IPs from your partners
+
+# Example: Your monitoring services
+# 10.0.0.0/8
+# 172.16.0.0/12
+# 192.168.0.0/16

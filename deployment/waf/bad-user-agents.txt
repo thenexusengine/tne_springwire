@@ -1,0 +1,67 @@
+# =============================================================================
+# Bad User Agents List for Catalyst WAF
+# =============================================================================
+# Add known malicious or unwanted user agents here (one per line).
+# Patterns are case-insensitive and matched as substrings.
+# =============================================================================
+
+# -- Known Vulnerability Scanners --
+nikto
+sqlmap
+nmap
+masscan
+zgrab
+nuclei
+wpscan
+nessus
+openvas
+qualys
+acunetix
+burpsuite
+owasp
+dirbuster
+gobuster
+ffuf
+
+# -- Web Scrapers --
+scrapy
+phantomjs
+headlesschrome
+puppeteer
+playwright
+selenium
+
+# -- Bad Bots --
+ahrefsbot
+mj12bot
+dotbot
+semrushbot
+baiduspider
+yandexbot
+sogou
+exabot
+gigabot
+seznambot
+
+# -- Known Attack Tools --
+metasploit
+havij
+sqlninja
+commix
+xsser
+
+# -- Generic Bad Patterns --
+bot/0
+bot/1
+spider/0
+crawler/0
+hack
+exploit
+scanner
+injection
+
+# -- Empty/Suspicious Patterns --
+-
+null
+undefined
+test

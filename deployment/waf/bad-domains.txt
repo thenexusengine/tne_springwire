@@ -1,0 +1,20 @@
+# =============================================================================
+# Known Fraudulent Domains for Catalyst WAF
+# =============================================================================
+# Domains associated with ad fraud, domain spoofing, or invalid traffic.
+# Obtain from industry fraud lists and your own analysis.
+# =============================================================================
+
+# -- Known Ad Fraud Patterns --
+# Typosquatting domains (examples)
+# gooogle.com
+# facebok.com
+# youtubbe.com
+
+# -- Known MFA (Made for Advertising) Domains --
+# Add domains identified as low-quality/fraudulent
+
+# -- Domain Spoofing Patterns --
+# Domains that commonly get spoofed (block the fake versions)
+
+# -- Add known bad domains below this line --

@@ -1,0 +1,40 @@
+# =============================================================================
+# Docker Compose for Catalyst with ModSecurity WAF
+# =============================================================================
+# This extends the base deployment with WAF-enabled nginx.
+# Usage: docker compose -f docker-compose.yml -f waf/docker-compose.waf.yml up
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # Override nginx with WAF-enabled version
+  nginx:
+    build:
+      context: ./waf
+      dockerfile: Dockerfile.nginx-modsecurity
+    image: catalyst-nginx-waf:latest
+    volumes:
+      # SSL certificates
+      - ./ssl:/etc/nginx/ssl:ro
+      # WAF logs (separate from regular logs)
+      - waf_logs:/var/log/nginx
+      # Rule data files (for runtime updates without rebuild)
+      - ./waf/bad-ips.txt:/etc/nginx/modsecurity/rules/bad-ips.txt:ro
+      - ./waf/bad-user-agents.txt:/etc/nginx/modsecurity/rules/bad-user-agents.txt:ro
+      - ./waf/bad-publishers.txt:/etc/nginx/modsecurity/rules/bad-publishers.txt:ro
+      - ./waf/bad-domains.txt:/etc/nginx/modsecurity/rules/bad-domains.txt:ro
+      - ./waf/trusted-ips.txt:/etc/nginx/modsecurity/rules/trusted-ips.txt:ro
+    environment:
+      # Set to "DetectionOnly" to log without blocking (for testing)
+      - MODSEC_RULE_ENGINE=On
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  waf_logs:
+    driver: local

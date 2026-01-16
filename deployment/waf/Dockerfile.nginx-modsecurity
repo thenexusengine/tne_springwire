@@ -1,0 +1,112 @@
+# =============================================================================
+# Nginx with ModSecurity 3 + OWASP CRS for Catalyst
+# =============================================================================
+# This Dockerfile builds nginx with ModSecurity WAF support.
+# Based on official nginx image with ModSecurity module compiled in.
+# =============================================================================
+
+FROM nginx:1.25-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    gcc \
+    g++ \
+    make \
+    automake \
+    autoconf \
+    libtool \
+    pcre-dev \
+    zlib-dev \
+    openssl-dev \
+    libxml2-dev \
+    curl-dev \
+    yajl-dev \
+    geoip-dev \
+    lmdb-dev \
+    libstdc++ \
+    git \
+    linux-headers
+
+# Build ModSecurity
+WORKDIR /opt
+RUN git clone --depth 1 -b v3/master --single-branch https://github.com/SpiderLabs/ModSecurity && \
+    cd ModSecurity && \
+    git submodule init && \
+    git submodule update && \
+    ./build.sh && \
+    ./configure --with-pcre --with-lmdb && \
+    make -j$(nproc) && \
+    make install
+
+# Build ModSecurity-nginx connector
+RUN git clone --depth 1 https://github.com/SpiderLabs/ModSecurity-nginx.git
+
+# Get nginx source matching installed version
+RUN NGINX_VERSION=$(nginx -v 2>&1 | cut -d'/' -f2) && \
+    wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
+    tar -xzf nginx-${NGINX_VERSION}.tar.gz && \
+    cd nginx-${NGINX_VERSION} && \
+    ./configure --with-compat --add-dynamic-module=../ModSecurity-nginx && \
+    make modules
+
+# =============================================================================
+# Final image
+# =============================================================================
+FROM nginx:1.25-alpine
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    pcre \
+    libxml2 \
+    yajl \
+    curl \
+    lmdb \
+    libstdc++ \
+    geoip
+
+# Copy ModSecurity library
+COPY --from=builder /usr/local/modsecurity/lib/libmodsecurity.so* /usr/local/lib/
+COPY --from=builder /opt/ModSecurity/unicode.mapping /etc/nginx/modsecurity/
+
+# Copy nginx module
+COPY --from=builder /opt/nginx-*/objs/ngx_http_modsecurity_module.so /etc/nginx/modules/
+
+# Update library cache
+RUN ldconfig /usr/local/lib || true
+
+# Download OWASP CRS
+RUN mkdir -p /etc/nginx/modsecurity/crs && \
+    wget -qO- https://github.com/coreruleset/coreruleset/archive/refs/tags/v4.0.0.tar.gz | \
+    tar -xzf - --strip-components=1 -C /etc/nginx/modsecurity/crs && \
+    mv /etc/nginx/modsecurity/crs/crs-setup.conf.example /etc/nginx/modsecurity/crs/crs-setup.conf
+
+# Create directories
+RUN mkdir -p /etc/nginx/modsecurity/rules \
+             /tmp/modsecurity/tmp \
+             /tmp/modsecurity/data \
+             /tmp/modsecurity/upload \
+             /var/log/nginx && \
+    chown -R nginx:nginx /tmp/modsecurity /var/log/nginx
+
+# Copy ModSecurity configuration
+COPY modsecurity.conf /etc/nginx/modsecurity/modsecurity.conf
+COPY crs-setup.conf /etc/nginx/modsecurity/crs/crs-setup.conf
+COPY catalyst-rules.conf /etc/nginx/modsecurity/rules/catalyst-rules.conf
+
+# Copy rule data files
+COPY bad-user-agents.txt /etc/nginx/modsecurity/rules/bad-user-agents.txt
+COPY bad-ips.txt /etc/nginx/modsecurity/rules/bad-ips.txt
+COPY bad-publishers.txt /etc/nginx/modsecurity/rules/bad-publishers.txt
+COPY bad-domains.txt /etc/nginx/modsecurity/rules/bad-domains.txt
+COPY trusted-ips.txt /etc/nginx/modsecurity/rules/trusted-ips.txt
+
+# Copy nginx configuration
+COPY ../nginx-waf.conf /etc/nginx/nginx.conf
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+EXPOSE 80 443
+
+CMD ["nginx", "-g", "daemon off;"]
